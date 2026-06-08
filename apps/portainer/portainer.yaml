@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portainer-data
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portainer
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: portainer
+    app.kubernetes.io/part-of: ito-k3s-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: portainer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portainer
+        app.kubernetes.io/part-of: ito-k3s-platform
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: portainer
+          image: portainer/portainer-ce:latest
+          args:
+            - --admin-password-file
+            - /run/secrets/PORTAINER_ADMIN_PASSWORD_HASH
+          ports:
+            - containerPort: 9000
+              name: http
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: portainer-secret
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: portainer-data
+        - name: portainer-secret
+          secret:
+            secretName: portainer-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portainer
+  namespace: apps
+spec:
+  selector:
+    app.kubernetes.io/name: portainer
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portainer
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - portainer.lab.example.com
+      secretName: portainer-tls
+  rules:
+    - host: portainer.lab.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portainer
+                port:
+                  name: http

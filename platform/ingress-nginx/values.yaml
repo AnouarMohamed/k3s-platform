@@ -1,0 +1,22 @@
+controller:
+  replicaCount: 1
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+  config:
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+    server-tokens: "false"
+    hsts: "true"
+    hsts-max-age: "15552000"
+    proxy-body-size: "128m"
+    proxy-read-timeout: "300"
+    proxy-send-timeout: "300"
+  metrics:
+    enabled: true
+  admissionWebhooks:
+    enabled: true

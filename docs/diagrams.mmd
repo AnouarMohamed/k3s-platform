@@ -1,0 +1,67 @@
+%% ITO K3s Platform Lab diagram source
+%% Render with Mermaid, mermaid-cli, or documentation tooling that supports Mermaid.
+
+flowchart TB
+  subgraph public["Public edge"]
+    dns["DNS records"]
+    users["Users / administrators"]
+    users --> dns
+  end
+
+  subgraph k3s["K3s cluster"]
+    lb["ServiceLB / public IP"]
+    ing["ingress-nginx"]
+    cm["cert-manager"]
+    issuer["ClusterIssuer staging / production"]
+
+    subgraph apps["apps namespace"]
+      wp["WordPress demo"]
+      jenkins["Jenkins"]
+      glpi["GLPI"]
+      superset["Superset"]
+      passbolt["Passbolt"]
+      portainer["Portainer"]
+      pvc["PVCs"]
+    end
+
+    subgraph ops["ops namespace"]
+      monitoring["Future Prometheus / Grafana / Loki"]
+    end
+  end
+
+  subgraph git["Git controlled desired state"]
+    repo["ito-k3s-platform-lab"]
+    kust["root kustomization.yaml"]
+    docs["docs + runbooks"]
+  end
+
+  dns --> lb --> ing --> apps
+  cm --> issuer
+  cm --> ing
+  apps --> pvc
+  repo --> kust --> k3s
+  repo --> docs
+
+---
+
+flowchart LR
+  swarm["Current Swarm + Nginx"] --> lab["K3s lab"]
+  lab --> stateless["First stateless service"]
+  stateless --> gitops["GitOps controller"]
+  gitops --> stateful["Stateful rehearsal"]
+  stateful --> prod["Production decision"]
+
+  swarm -. rollback by DNS .-> stateless
+  stateless -. rollback by DNS .-> swarm
+
+---
+
+flowchart TB
+  request["HTTPS request"] --> ingress["Ingress rule host/path"]
+  ingress --> service["Kubernetes Service"]
+  service --> endpoints["Ready endpoints"]
+  endpoints --> pod["Pod"]
+  pod --> pvc["PVC if stateful"]
+  cert["Certificate object"] --> secret["TLS Secret"]
+  secret --> ingress
+  issuer["ClusterIssuer"] --> cert

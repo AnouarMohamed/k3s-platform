@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - platform/namespaces.yaml
+  - platform/storage.yaml
+  - platform/cert-manager/clusterissuers.yaml
+  - policies/default-deny.yaml
+  - policies/allow-ingress-to-apps.yaml
+  - policies/allow-apps-internal.yaml
+  - apps/wordpress-demo
+  - apps/jenkins
+  - apps/glpi
+  - apps/superset
+  - apps/passbolt
+  - apps/portainer

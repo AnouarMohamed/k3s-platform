@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: passbolt-db
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: passbolt-db
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: passbolt-db
+    app.kubernetes.io/part-of: ito-k3s-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: passbolt-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passbolt-db
+        app.kubernetes.io/part-of: ito-k3s-platform
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:10.11
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              value: passbolt
+            - name: MYSQL_USER
+              value: passbolt
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: passbolt-secret
+                  key: PASSBOLT_DB_PASSWORD
+            - name: MYSQL_RANDOM_ROOT_PASSWORD
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: passbolt-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: passbolt-db
+  namespace: apps
+spec:
+  selector:
+    app.kubernetes.io/name: passbolt-db
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: passbolt-data
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: passbolt
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: passbolt
+    app.kubernetes.io/part-of: ito-k3s-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: passbolt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: passbolt
+        app.kubernetes.io/part-of: ito-k3s-platform
+    spec:
+      containers:
+        - name: passbolt
+          image: passbolt/passbolt:latest-ce
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: APP_FULL_BASE_URL
+              value: https://passbolt.lab.example.com
+            - name: DATASOURCES_DEFAULT_HOST
+              value: passbolt-db.apps.svc.cluster.local
+            - name: DATASOURCES_DEFAULT_DATABASE
+              value: passbolt
+            - name: DATASOURCES_DEFAULT_USERNAME
+              value: passbolt
+            - name: DATASOURCES_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: passbolt-secret
+                  key: PASSBOLT_DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /etc/passbolt
+          readinessProbe:
+            httpGet:
+              path: /healthcheck/status.json
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: passbolt-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: passbolt
+  namespace: apps
+spec:
+  selector:
+    app.kubernetes.io/name: passbolt
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: passbolt
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - passbolt.lab.example.com
+      secretName: passbolt-tls
+  rules:
+    - host: passbolt.lab.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: passbolt
+                port:
+                  name: http

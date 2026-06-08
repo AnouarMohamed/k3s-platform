@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-content
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-db
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress-db
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: wordpress-db
+    app.kubernetes.io/part-of: ito-k3s-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wordpress-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wordpress-db
+        app.kubernetes.io/part-of: ito-k3s-platform
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              value: wordpress
+            - name: MYSQL_USER
+              value: wordpress
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: WORDPRESS_DB_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: MYSQL_ROOT_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          readinessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: wordpress-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress-db
+  namespace: apps
+spec:
+  selector:
+    app.kubernetes.io/name: wordpress-db
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress-demo
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: wordpress-demo
+    app.kubernetes.io/part-of: ito-k3s-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wordpress-demo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wordpress-demo
+        app.kubernetes.io/part-of: ito-k3s-platform
+    spec:
+      containers:
+        - name: wordpress
+          image: wordpress:php8.2-apache
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: wordpress-db.apps.svc.cluster.local:3306
+            - name: WORDPRESS_DB_USER
+              value: wordpress
+            - name: WORDPRESS_DB_NAME
+              value: wordpress
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: WORDPRESS_DB_PASSWORD
+          volumeMounts:
+            - name: content
+              mountPath: /var/www/html
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: wordpress-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress-demo
+  namespace: apps
+spec:
+  selector:
+    app.kubernetes.io/name: wordpress-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress-demo
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: "128m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - wp.lab.example.com
+      secretName: wordpress-demo-tls
+  rules:
+    - host: wp.lab.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wordpress-demo
+                port:
+                  name: http

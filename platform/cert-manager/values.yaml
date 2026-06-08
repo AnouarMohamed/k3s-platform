@@ -1,0 +1,8 @@
+crds:
+  enabled: true
+prometheus:
+  enabled: true
+webhook:
+  timeoutSeconds: 10
+extraArgs:
+  - --dns01-recursive-nameservers-only
