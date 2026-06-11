@@ -1,10 +1,20 @@
+# Platform Storage Configuration
+# Defines how persistent data is handled on the local nodes.
+
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: local-path-retain
   annotations:
+    # We do not set this as default to force explicit choice of storage strategy.
     storageclass.kubernetes.io/is-default-class: "false"
+# Use Rancher's local-path-provisioner, which is standard in K3s.
 provisioner: rancher.io/local-path
+# SECURITY/OPERATIONS: 'Retain' ensures that if a PVC is deleted, the physical data
+# on the node remains, allowing for manual recovery of critical data.
 reclaimPolicy: Retain
+# 'WaitForFirstConsumer' delays volume binding until the pod is scheduled.
+# This ensures the volume is created on the correct node where the pod will run.
 volumeBindingMode: WaitForFirstConsumer
+# Allows for resizing volumes if the underlying filesystem supports it.
 allowVolumeExpansion: true

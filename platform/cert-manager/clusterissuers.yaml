@@ -1,9 +1,14 @@
+# Cert-Manager ClusterIssuers
+# Configures ACME (Let's Encrypt) for automated TLS certificate management.
+
+# Staging Issuer: Used for testing to avoid Let's Encrypt production rate limits.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-staging
 spec:
   acme:
+    # Email is injected here via Kustomize replacements from platform-settings.
     email: admin@example.com
     server: https://acme-staging-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
@@ -13,12 +18,14 @@ spec:
           ingress:
             class: nginx
 ---
+# Production Issuer: Used for live services to obtain trusted browser certificates.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-production
 spec:
   acme:
+    # Email is injected here via Kustomize replacements from platform-settings.
     email: admin@example.com
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
