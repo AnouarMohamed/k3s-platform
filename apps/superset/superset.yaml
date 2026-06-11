@@ -21,6 +21,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: superset
@@ -30,41 +33,95 @@ spec:
         app.kubernetes.io/name: superset
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: superset
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: superset
-          image: apache/superset:latest
+          image: apache/superset:5.0.0@sha256:09735adaae3945c5a8fabbeca31a7954c8c74de195702ba61622aee8604d5c55
+          # allowPrivilegeEscalation: false - Security best practice to prevent privilege escalation.
+          # capabilities: drop: [ALL] - Minimizes the attack surface.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command: ["/bin/sh", "-c"]
           args:
             - |
               superset db upgrade &&
               superset fab create-admin \
-                --username "${SUPERSET_ADMIN_USERNAME:-admin}" \
-                --firstname Admin \
-                --lastname User \
-                --email "${SUPERSET_ADMIN_EMAIL:-admin@example.com}" \
-                --password "${SUPERSET_ADMIN_PASSWORD:-change-me}" || true
+                --username "${SUPERSET_ADMIN_USERNAME}" \
+                --firstname "${SUPERSET_ADMIN_FIRSTNAME}" \
+                --lastname "${SUPERSET_ADMIN_LASTNAME}" \
+                --email "${SUPERSET_ADMIN_EMAIL}" \
+                --password "${SUPERSET_ADMIN_PASSWORD}" || true
               superset init
               gunicorn --bind 0.0.0.0:8088 "superset.app:create_app()"
           ports:
             - containerPort: 8088
               name: http
+          # resources: Superset (Python/Gunicorn) requires significant memory for data processing.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
           env:
             - name: SUPERSET_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: superset-secret
                   key: SUPERSET_SECRET_KEY
+            - name: SUPERSET_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: superset-secret
+                  key: SUPERSET_ADMIN_USERNAME
+            - name: SUPERSET_ADMIN_FIRSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: superset-secret
+                  key: SUPERSET_ADMIN_FIRSTNAME
+            - name: SUPERSET_ADMIN_LASTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: superset-secret
+                  key: SUPERSET_ADMIN_LASTNAME
+            - name: SUPERSET_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: superset-secret
+                  key: SUPERSET_ADMIN_EMAIL
+            - name: SUPERSET_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: superset-secret
+                  key: SUPERSET_ADMIN_PASSWORD
             - name: SUPERSET_HOME
               value: /app/superset_home
           volumeMounts:
             - name: home
               mountPath: /app/superset_home
+          # readinessProbe: Verifies the Superset health endpoint is reachable.
           readinessProbe:
             httpGet:
               path: /health
               port: http
             initialDelaySeconds: 60
             periodSeconds: 15
+          # livenessProbe: Restarts the container if Superset becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
       volumes:
         - name: home
           persistentVolumeClaim:
@@ -89,17 +146,17 @@ metadata:
   name: superset
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - bi.lab.example.com
+        - bi.example.com
       secretName: superset-tls
   rules:
-    - host: bi.lab.example.com
+    - host: bi.example.com
       http:
         paths:
           - path: /

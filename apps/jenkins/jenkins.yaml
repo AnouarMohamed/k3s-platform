@@ -21,6 +21,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: jenkins
@@ -30,25 +33,58 @@ spec:
         app.kubernetes.io/name: jenkins
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: jenkins
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      # securityContext: Jenkins requires specific UID/GID for file permissions.
+      # runAsUser: 1000 - Executes as the 'jenkins' user defined in the image.
+      # fsGroup: 1000 - Ensures persistent volumes are writable by the jenkins user.
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: jenkins
-          image: jenkins/jenkins:lts-jdk17
+          image: jenkins/jenkins:2.555.3-lts-jdk21@sha256:e82bbdcffb6361c081ac66bbdcd5802a299b3631c78c3be04a0a91c7f952fff3
+          # allowPrivilegeEscalation: false - Security hardening.
+          # capabilities: drop: [ALL] - Removes all unnecessary kernel capabilities.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 8080
               name: http
             - containerPort: 50000
               name: agent
+          # resources: Jenkins is JVM-based; requests/limits are set to prevent heap-related OOM.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
           volumeMounts:
             - name: home
               mountPath: /var/jenkins_home
+          # readinessProbe: Checks if the login page is accessible (Java/Jenkins initialized).
           readinessProbe:
             httpGet:
               path: /login
               port: http
             initialDelaySeconds: 45
             periodSeconds: 15
+          # livenessProbe: Restarts Jenkins if the web UI becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
       volumes:
         - name: home
           persistentVolumeClaim:
@@ -76,16 +112,16 @@ metadata:
   name: jenkins
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - jenkins.lab.example.com
+        - jenkins.example.com
       secretName: jenkins-tls
   rules:
-    - host: jenkins.lab.example.com
+    - host: jenkins.example.com
       http:
         paths:
           - path: /

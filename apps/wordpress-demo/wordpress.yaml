@@ -34,6 +34,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: wordpress-db
@@ -43,12 +46,34 @@ spec:
         app.kubernetes.io/name: wordpress-db
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: wordpress-db
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      # securityContext: Hardening at the pod level.
+      # seccompProfile: Uses the container runtime's default profile to filter system calls.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: mysql
-          image: mysql:8.0
+          image: mysql:8.4.9@sha256:c36050afdca850f23cef85703f84c7531a5ae155a11b5ee1c60acb09937c4084
+          # allowPrivilegeEscalation: false - Prevents the container process from gaining more 
+          # privileges than its parent, mitigating potential container breakout exploits.
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 3306
               name: mysql
+          # resources:
+          #   requests: Minimum guaranteed resources; prevents scheduling if not available.
+          #   limits: Hard cap to prevent "noisy neighbor" effect and OOM kills.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           env:
             - name: MYSQL_DATABASE
               value: wordpress
@@ -67,11 +92,19 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+          # readinessProbe: Ensures the DB is actually ready to handle queries before 
+          # the Service starts routing traffic to it.
           readinessProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
             initialDelaySeconds: 20
             periodSeconds: 10
+          # livenessProbe: Detects if the MySQL process has hung and restarts the container.
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -100,6 +133,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: wordpress-demo
@@ -109,12 +145,27 @@ spec:
         app.kubernetes.io/name: wordpress-demo
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: wordpress-demo
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: wordpress
-          image: wordpress:php8.2-apache
+          image: wordpress:7.0.0-php8.4-apache@sha256:285195ddf57ad8e83548360fbeca026707e5cf0b55e440b16f6e2b4601e95cb7
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 80
               name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           env:
             - name: WORDPRESS_DB_HOST
               value: wordpress-db.apps.svc.cluster.local:3306
@@ -130,12 +181,20 @@ spec:
           volumeMounts:
             - name: content
               mountPath: /var/www/html
+          # readinessProbe: Verifies Apache is serving the WordPress site.
           readinessProbe:
             httpGet:
               path: /
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
+          # livenessProbe: Restarts the container if the PHP engine or Apache stalls.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
       volumes:
         - name: content
           persistentVolumeClaim:
@@ -160,16 +219,16 @@ metadata:
   name: wordpress-demo
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-body-size: "128m"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - wp.lab.example.com
+        - wp.example.com
       secretName: wordpress-demo-tls
   rules:
-    - host: wp.lab.example.com
+    - host: wp.example.com
       http:
         paths:
           - path: /

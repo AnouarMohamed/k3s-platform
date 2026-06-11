@@ -21,6 +21,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: passbolt-db
@@ -30,12 +33,29 @@ spec:
         app.kubernetes.io/name: passbolt-db
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: passbolt-db
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: mariadb
-          image: mariadb:10.11
+          image: mariadb:10.11.18@sha256:5a5c675881ef3fd1c1da9b0a3bfd6ee82edbe39cd9e32e06be18034c37235e0e
+          # allowPrivilegeEscalation: false - Prevents root-level exploits within the container.
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 3306
               name: mysql
+          # resources: Moderate allocation for MariaDB in a password manager setup.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           env:
             - name: MYSQL_DATABASE
               value: passbolt
@@ -51,6 +71,18 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+          # readinessProbe: Uses MariaDB's healthcheck script to ensure the engine is ready.
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          # livenessProbe: Restarts the DB if the connection or InnoDB fails.
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 90
+            periodSeconds: 20
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -92,6 +124,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: passbolt
@@ -101,15 +136,31 @@ spec:
         app.kubernetes.io/name: passbolt
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: passbolt
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: passbolt
-          image: passbolt/passbolt:latest-ce
+          image: passbolt/passbolt:5.13.0-1-ce@sha256:4b0d76c786bfca78b0362b7a24f1f6d55cb25c0333bd9beffd52ab3b5b829d37
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 80
               name: http
+          # resources: Passbolt (PHP/Nginx) requires consistent memory for encryption tasks.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           env:
             - name: APP_FULL_BASE_URL
-              value: https://passbolt.lab.example.com
+              value: https://passbolt.example.com
             - name: DATASOURCES_DEFAULT_HOST
               value: passbolt-db.apps.svc.cluster.local
             - name: DATASOURCES_DEFAULT_DATABASE
@@ -124,12 +175,20 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /etc/passbolt
+          # readinessProbe: Checks Passbolt's internal healthcheck JSON endpoint.
           readinessProbe:
             httpGet:
               path: /healthcheck/status.json
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20
+          # livenessProbe: Restarts the container if the Passbolt service becomes unhealthy.
+          livenessProbe:
+            httpGet:
+              path: /healthcheck/status.json
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -154,15 +213,15 @@ metadata:
   name: passbolt
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-production
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - passbolt.lab.example.com
+        - passbolt.example.com
       secretName: passbolt-tls
   rules:
-    - host: passbolt.lab.example.com
+    - host: passbolt.example.com
       http:
         paths:
           - path: /

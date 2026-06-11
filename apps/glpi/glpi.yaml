@@ -21,6 +21,9 @@ metadata:
     app.kubernetes.io/part-of: ito-k3s-platform
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: glpi
@@ -30,21 +33,46 @@ spec:
         app.kubernetes.io/name: glpi
         app.kubernetes.io/part-of: ito-k3s-platform
     spec:
+      serviceAccountName: glpi
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: glpi
-          image: elestio/glpi:latest
+          image: elestio/glpi:11.0.7@sha256:fd65d78396f53600d57c4763097e3fde02d24236e901735a2b85036c1b1efb78
+          # allowPrivilegeEscalation: false - Minimizes risk by preventing privilege gain.
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 80
               name: http
+          # resources: Defines standard allocation for a PHP/Web application.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           volumeMounts:
             - name: data
               mountPath: /var/www/html
+          # readinessProbe: Ensures GLPI is serving the login page/dashboard.
           readinessProbe:
             httpGet:
               path: /
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
+          # livenessProbe: Restarts GLPI if the web service hangs.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -69,15 +97,15 @@ metadata:
   name: glpi
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
+    cert-manager.io/cluster-issuer: letsencrypt-production
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - glpi.lab.example.com
+        - glpi.example.com
       secretName: glpi-tls
   rules:
-    - host: glpi.lab.example.com
+    - host: glpi.example.com
       http:
         paths:
           - path: /
