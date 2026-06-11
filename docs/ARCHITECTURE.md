@@ -29,7 +29,8 @@ flowchart TB
 | `cert-manager` | Helm-managed certificate controller | ACME automation and certificate lifecycle. |
 | `apps` | Application workloads | Keeps business workloads separate from controllers. |
 | `data` | Dedicated data workloads when split out later | Reserved for stricter data isolation. |
-| `ops` | Operations and future observability | Holds platform settings today, later monitoring and alerting. |
+| `ops` | Operations and observability | Holds platform settings, Prometheus, Alertmanager, Grafana, Loki, and cluster-state collectors. |
+| `node-observability` | Node-level observability | Holds hostPath collectors such as Promtail and node-exporter. |
 | `edge` | Future edge helpers | Reserved for custom edge tools if the architecture grows. |
 
 ## Ingress Strategy
@@ -68,12 +69,11 @@ volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 ```
 
-This is acceptable for a small single-server K3s deployment when the operator accepts node-local storage risk and has external backups. For stronger production resilience, add one of:
+This is acceptable for a small single-server K3s deployment when the operator accepts node-local storage risk and has external backups. The repo includes Restic CronJobs for off-node database and PVC backups. For stronger production resilience, also evaluate:
 
 - Longhorn for replicated block storage.
 - managed databases outside the cluster.
-- external object storage for backups.
-- Velero or restic-based volume backups.
+- Velero snapshots for cluster-level restore.
 
 ## Network Policy Strategy
 
@@ -86,6 +86,7 @@ Allowed traffic is specific:
 - pods reach kube-dns on TCP/UDP 53.
 - selected apps reach public web endpoints on TCP 80/443.
 - selected apps reach SMTP endpoints on TCP 25/465/587.
+- backup jobs reach their database targets and S3-compatible HTTPS endpoints.
 - Jenkins reaches Git SSH on TCP 22.
 - labelled Jenkins agents reach Jenkins TCP 50000.
 
@@ -106,9 +107,8 @@ There is no namespace-wide internal allow.
 
 The next architectural upgrades are:
 
-- encrypted Git-managed secrets with SOPS or Sealed Secrets.
-- backup jobs and restore automation.
-- monitoring in `ops`: Prometheus, Grafana, Loki, Alertmanager.
-- ingress external auth or IP allowlists for admin surfaces.
+- restore automation for the remaining stateful apps.
+- ingress external auth for admin surfaces.
 - CI checks with kubeconform and policy-as-code.
 - per-server overlays if the same repo manages staging and production.
+- Cilium if FQDN egress enforcement becomes mandatory.

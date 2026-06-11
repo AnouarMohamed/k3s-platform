@@ -14,13 +14,16 @@ Kubernetes does not remove operational responsibility. It makes it explicit.
 ## Bootstrap Sequence
 
 ```bash
-cp .env.example .env
-vim .env
+cp secrets/production.plain.example.yaml secrets/production.plain.yaml
+vim secrets/production.plain.yaml
+export SOPS_AGE_RECIPIENTS=age1...
+make encrypt-secrets
 make bootstrap
 export KUBECONFIG=$PWD/kubeconfig
 make addons
 make secrets
 make check
+make production-check
 make apply
 make validate
 ```
@@ -33,6 +36,8 @@ kubectl get pods -A
 kubectl get ingress -A
 kubectl get certificates -A
 kubectl -n ingress-nginx get svc,pods
+kubectl -n ops get deploy,ds,svc,pvc
+kubectl -n apps get cronjob
 ```
 
 Healthy baseline:
@@ -139,21 +144,35 @@ kubectl -n apps rollout status deploy/<name>
 
 ## Backup Responsibilities
 
-This repository does not pretend that PVCs are backups. PVCs are runtime storage. Backups must be external.
+This repository renders Restic CronJobs for database dumps and PVC content. They require `backup-s3-secret` from `secrets/production.enc.yaml`.
 
-Minimum manual backup example:
+Check backup jobs:
 
 ```bash
-kubectl -n apps get pvc
-kubectl -n apps exec deploy/wordpress-db -- mysqldump -u root -p wordpress > wordpress.sql
+kubectl -n apps get cronjob
+kubectl -n apps get jobs
+kubectl -n apps logs job/<backup-job-name>
 ```
 
 Production expectation:
 
-- scheduled database dumps.
-- volume snapshots or restic backups.
-- off-node storage.
-- restore drills.
+- S3-compatible repository is off-node.
+- Restic password is stored only in encrypted secrets.
+- restore drills are run before cutover.
+- failed backup jobs alert through the telemetry stack.
+
+Restore procedures:
+
+- WordPress: `runbooks/RESTORE_WORDPRESS.md`
+- Passbolt: `runbooks/RESTORE_PASSBOLT.md`
+- PVC content restore helper: `RESTORE_TAG=<tag> TARGET_PVC=<pvc> CONFIRM_RESTORE=yes make restore-volume`
+
+Check alerting:
+
+```bash
+kubectl -n ops get deploy prometheus alertmanager grafana
+kubectl -n ops logs deploy/alertmanager --tail=100
+```
 
 ## Upgrade Workflow
 
@@ -180,5 +199,6 @@ Before an upgrade:
 
 - Do not switch all stateful services at once.
 - Do not commit `.env` or kubeconfig.
+- Do not commit `secrets/production.plain.yaml`.
 - Do not rely on `latest` tags for production.
 - Do not expose admin tools without auth and IP restrictions.

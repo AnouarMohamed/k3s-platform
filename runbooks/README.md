@@ -1,5 +1,11 @@
 # Runbooks
 
+Focused procedures:
+
+- [Restore WordPress](RESTORE_WORDPRESS.md)
+- [Restore Passbolt](RESTORE_PASSBOLT.md)
+- [Secret Rotation](SECRET_ROTATION.md)
+
 ## 1. Cluster Health
 
 ```bash
@@ -105,11 +111,12 @@ kubectl -n apps scale deploy/<name> --replicas=0
 ```bash
 make addons
 make secrets
+make production-check
 make apply
 make validate
 ```
 
-This is safe only if `.env` contains the intended secret values and the Git tree is clean.
+This is safe only if `secrets/production.enc.yaml` decrypts correctly and the Git tree is clean.
 
 ## 8. Roll Back A Bad Manifest Change
 
@@ -146,3 +153,18 @@ git status --short
 ```
 
 Only placeholders and examples should appear.
+
+## 11. Alerting
+
+Prometheus sends alerts to Alertmanager through `platform/telemetry/alertmanager.yaml`. The receiver config lives in SOPS-managed `alertmanager-secret`, not plaintext manifests.
+
+Check alerting:
+
+```bash
+kubectl -n ops get deploy prometheus alertmanager grafana
+kubectl -n ops logs deploy/prometheus --tail=100
+kubectl -n ops logs deploy/alertmanager --tail=100
+kubectl -n ops port-forward svc/alertmanager 9093:9093
+```
+
+The production gate is not satisfied until the encrypted Alertmanager config routes to a real receiver and a test alert reaches the operator.

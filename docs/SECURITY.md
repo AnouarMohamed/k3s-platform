@@ -16,10 +16,14 @@ The repository uses:
 - pinned images with digests.
 - dedicated service accounts with token automount disabled.
 - resource quotas and limits.
+- SOPS-encrypted production secrets.
+- admin ingress IP allowlists.
 
 ## Secrets
 
-Runtime Secrets are created from `.env` through `scripts/create-secrets.sh`. The script refuses missing values and obvious placeholders.
+Production Secrets are encrypted in Git with SOPS + Age. `make secrets` decrypts and applies `secrets/production.enc.yaml`.
+
+`.env` plus `make local-secrets` remains available only as a break-glass bootstrap path. It is not the normal production state model.
 
 Never commit:
 
@@ -30,12 +34,7 @@ Never commit:
 - generated password hashes
 - service account tokens
 
-For GitOps production use, replace local secret creation with one of:
-
-- SOPS + age/GPG.
-- Sealed Secrets.
-- External Secrets Operator.
-- cloud secret manager integration.
+The repo includes `secrets/production.plain.example.yaml` as the local starting point. Commit only `*.enc.yaml`.
 
 ## TLS
 
@@ -52,6 +51,7 @@ Allowed paths are explicit:
 - ingress-nginx namespace -> each frontend app on its service port.
 - WordPress -> WordPress DB on TCP 3306.
 - Passbolt -> Passbolt DB on TCP 3306.
+- backup jobs -> their database targets and public S3-compatible HTTPS endpoint.
 - app pods -> kube-dns on TCP/UDP 53.
 - selected app pods -> public TCP 80/443.
 - selected mail-capable app pods -> public SMTP ports 25/465/587.
@@ -59,6 +59,8 @@ Allowed paths are explicit:
 - Jenkins agents labelled `jenkins.io/agent=true` -> Jenkins TCP 50000.
 
 The old namespace-wide internal allow has been removed.
+
+Vanilla Kubernetes NetworkPolicy cannot restrict egress by FQDN. The repo includes `policies/examples/cilium-fqdn-egress.example.yaml` for a future Cilium migration.
 
 ## RBAC
 
@@ -68,17 +70,16 @@ If Portainer or Jenkins is later allowed to manage the cluster, add deliberate R
 
 ## Pod Security
 
-Namespaces enforce `baseline` Pod Security and warn/audit against `restricted`. This keeps the current third-party images deployable while surfacing violations that should be resolved with custom images or app-specific hardening.
+Namespaces enforce `baseline` Pod Security and warn/audit against `restricted`, except `node-observability`, which is explicitly `privileged` because Promtail and node-exporter need hostPath access to node logs and metrics. Workloads set non-root security contexts where the image supports it. The privileged namespace should contain only node-level collectors.
 
 ## Public Exposure
 
 Admin applications such as Jenkins, Portainer, Passbolt, GLPI, and Superset should not be treated like public marketing websites.
 
-Before production exposure:
+Current admin ingresses include an ingress-nginx source allowlist and basic rate limit annotations. Before production exposure:
 
 - add application authentication.
-- consider VPN, IP allowlist, or external auth at ingress.
-- enable rate limiting.
+- prefer VPN or external auth at ingress.
 - monitor login failures.
 - document emergency disable steps.
 

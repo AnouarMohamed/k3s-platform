@@ -96,7 +96,7 @@ Do not put raw Kubernetes Secret manifests with real values in Git. Good options
 | SOPS + age | Strong for GitOps | Encrypted values are committed, keys stay outside Git. |
 | Sealed Secrets | Simple cluster-bound encryption | Easy for a small cluster, tied to controller key. |
 | External Secrets Operator | Strong cloud integration | Best when using a secret manager. |
-| Manual secret creation | Useful for bootstrap | Not enough for production GitOps. |
+| Manual secret creation | Break-glass only | Not a reproducible production state model. |
 
 ## Promotion Model
 

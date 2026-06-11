@@ -28,7 +28,7 @@ rg -n "password|secret|token|private|BEGIN|htpasswd|acme" .
 ```
 
 Expected result: only examples, placeholders, and secret references should appear.
-Real secret values must exist only in `.env`, a secret manager, or live Kubernetes Secrets.
+Real secret values must exist only in `secrets/production.enc.yaml`, a secret manager, or live Kubernetes Secrets. `.env` is only for break-glass local bootstrap.
 
 ## Cluster Validation
 
@@ -47,6 +47,8 @@ kubectl -n cert-manager get deploy,pods
 kubectl -n apps get deploy,svc,ingress,pvc
 kubectl get clusterissuer
 kubectl get certificates -A
+kubectl -n ops get deploy,ds,svc,pvc
+kubectl -n apps get cronjob
 ```
 
 ## Ingress Validation
@@ -84,6 +86,28 @@ kubectl -n apps describe pvc <name>
 ```
 
 A PVC being bound proves runtime allocation. It does not prove backup.
+
+## Backup Validation
+
+```bash
+kubectl -n apps create job --from=cronjob/backup-wordpress-db backup-wordpress-db-manual
+kubectl -n apps logs job/backup-wordpress-db-manual
+```
+
+Then verify the Restic repository from a trusted admin machine:
+
+```bash
+restic snapshots
+restic restore latest --target /tmp/restore-test
+```
+
+For an in-cluster PVC restore drill, use a staging PVC or a maintenance window:
+
+```bash
+RESTORE_TAG=wordpress-content TARGET_PVC=wordpress-content CONFIRM_RESTORE=yes make restore-volume
+```
+
+Do not count backups as production-ready until at least one database restore and one PVC restore have been tested from the S3 repository.
 
 ## Application Validation
 

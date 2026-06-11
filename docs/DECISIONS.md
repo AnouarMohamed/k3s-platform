@@ -73,20 +73,21 @@ Status: accepted.
 
 ## ADR-005: Keep Plaintext Secrets Out Of Git
 
-Decision: commit only examples and create runtime Secrets from `.env` for manual bootstrap.
+Decision: use SOPS + Age for production Secrets committed as encrypted YAML.
 
 Reasoning:
 
 - the repo can stay sanitized.
 - secret references remain visible without exposing values.
-- `scripts/create-secrets.sh` rejects placeholders.
+- cluster state is reproducible from Git.
+- `make production-check` fails when encrypted secrets are missing.
 
 Tradeoff:
 
-- `.env` bootstrap is not full production GitOps secret management.
-- SOPS, Sealed Secrets, or External Secrets should be added next.
+- the operator must manage Age private keys outside the repo.
+- `.env` remains only as a break-glass bootstrap path.
 
-Status: accepted as bootstrap; improve with encrypted secrets.
+Status: accepted.
 
 ## ADR-006: Use local-path-retain As The Default StorageClass
 
@@ -105,6 +106,42 @@ Tradeoff:
 - production requires external backups or a stronger storage design.
 
 Status: accepted with explicit risk.
+
+## ADR-009: Add Restic Backups For Stateful Data
+
+Decision: render CronJobs for logical database dumps and PVC content backups to S3-compatible storage.
+
+Reasoning:
+
+- `local-path-retain` is runtime storage, not backup.
+- backups must leave the node to survive disk or provider failure.
+- database dumps are more restorable than crash-consistent DB file copies.
+
+Tradeoff:
+
+- restore drills still have to be executed per application before cutover.
+- S3 credentials and Restic password become required production secrets.
+
+Status: accepted.
+
+## ADR-010: Add Lightweight Telemetry
+
+Decision: include Prometheus, Alertmanager, kube-state-metrics, node-exporter, Grafana, Loki, and Promtail manifests.
+
+Reasoning:
+
+- pod readiness alone is not enough operational visibility.
+- kube-state-metrics exposes restarts, unavailable workloads, quotas, jobs, and PVC state.
+- node-exporter exposes host disk and node-level metrics that matter for local-path storage.
+- Alertmanager turns backup, pod, PVC, and disk failures into routed alerts.
+- Loki and Promtail provide basic log aggregation without a managed logging service.
+
+Tradeoff:
+
+- receiver endpoints must live in encrypted Secret material and be tested by the operator.
+- telemetry consumes local storage and must also be monitored.
+
+Status: accepted.
 
 ## ADR-007: Enforce Default-Deny NetworkPolicy
 
