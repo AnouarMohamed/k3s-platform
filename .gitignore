@@ -6,7 +6,13 @@
 *.key
 *.kubeconfig
 kubeconfig*
-secrets/
+secrets/*
+!secrets/
+!secrets/README.md
+!secrets/*.example.yaml
+!secrets/*.enc.yaml
+!secrets/**/*.example.yaml
+!secrets/**/*.enc.yaml
 tmp/
 dist/
 __pycache__/

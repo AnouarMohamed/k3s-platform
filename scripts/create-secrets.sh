@@ -53,6 +53,9 @@ require_secret() {
 # Validate all required secrets for the applications
 require_secret MYSQL_ROOT_PASSWORD
 require_secret WORDPRESS_DB_PASSWORD
+require_secret WORDPRESS_ADMIN_USERNAME
+require_secret WORDPRESS_ADMIN_PASSWORD
+require_secret WORDPRESS_ADMIN_EMAIL
 require_secret SUPERSET_SECRET_KEY
 require_secret SUPERSET_ADMIN_USERNAME
 require_secret SUPERSET_ADMIN_FIRSTNAME
@@ -61,10 +64,19 @@ require_secret SUPERSET_ADMIN_EMAIL
 require_secret SUPERSET_ADMIN_PASSWORD
 require_secret PASSBOLT_DB_PASSWORD
 require_secret PORTAINER_ADMIN_PASSWORD_HASH
+require_secret RESTIC_REPOSITORY
+require_secret RESTIC_PASSWORD
+require_secret AWS_ACCESS_KEY_ID
+require_secret AWS_SECRET_ACCESS_KEY
+require_secret AWS_DEFAULT_REGION
+require_secret GRAFANA_ADMIN_USER
+require_secret GRAFANA_ADMIN_PASSWORD
+require_secret ALERTMANAGER_WEBHOOK_URL
 
 # Ensure the 'apps' namespace exists before creating secrets
 echo "Ensuring 'apps' namespace exists..."
 kubectl create namespace apps --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace ops --dry-run=client -o yaml | kubectl apply -f -
 
 # Create or update secrets in the cluster.
 # We use --dry-run=client -o yaml piped to kubectl apply -f - to make the operation idempotent.
@@ -73,6 +85,9 @@ echo "Applying wordpress-demo-secret..."
 kubectl -n apps create secret generic wordpress-demo-secret \
   --from-literal=MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD}" \
   --from-literal=WORDPRESS_DB_PASSWORD="${WORDPRESS_DB_PASSWORD}" \
+  --from-literal=WORDPRESS_ADMIN_USERNAME="${WORDPRESS_ADMIN_USERNAME}" \
+  --from-literal=WORDPRESS_ADMIN_PASSWORD="${WORDPRESS_ADMIN_PASSWORD}" \
+  --from-literal=WORDPRESS_ADMIN_EMAIL="${WORDPRESS_ADMIN_EMAIL}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Applying superset-secret..."
@@ -93,6 +108,54 @@ kubectl -n apps create secret generic passbolt-secret \
 echo "Applying portainer-secret..."
 kubectl -n apps create secret generic portainer-secret \
   --from-literal=PORTAINER_ADMIN_PASSWORD_HASH="${PORTAINER_ADMIN_PASSWORD_HASH}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Applying backup-s3-secret..."
+kubectl -n apps create secret generic backup-s3-secret \
+  --from-literal=RESTIC_REPOSITORY="${RESTIC_REPOSITORY}" \
+  --from-literal=RESTIC_PASSWORD="${RESTIC_PASSWORD}" \
+  --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+  --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+  --from-literal=AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Applying grafana-secret..."
+kubectl -n ops create secret generic grafana-secret \
+  --from-literal=GF_SECURITY_ADMIN_USER="${GRAFANA_ADMIN_USER}" \
+  --from-literal=GF_SECURITY_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+alertmanager_config="$(mktemp)"
+trap 'rm -f "${alertmanager_config}"' EXIT
+cat > "${alertmanager_config}" <<EOF
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: platform-webhook
+  group_by:
+    - alertname
+    - namespace
+    - job
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: platform-webhook
+      matchers:
+        - severity="critical"
+      repeat_interval: 1h
+
+receivers:
+  - name: platform-webhook
+    webhook_configs:
+      - url: ${ALERTMANAGER_WEBHOOK_URL}
+        send_resolved: true
+EOF
+
+echo "Applying alertmanager-secret..."
+kubectl -n ops create secret generic alertmanager-secret \
+  --from-file=alertmanager.yml="${alertmanager_config}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Secrets applied successfully."
