@@ -1,0 +1,26 @@
+# Platform Global Settings
+# This ConfigMap serves as the "Source of Truth" for environmental configuration.
+# Values defined here are injected into other resources via Kustomize replacements.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-settings
+  namespace: ops
+data:
+  # The ClusterIssuer to be used for TLS certificates (letsencrypt-staging or letsencrypt-production).
+  clusterIssuer: letsencrypt-production
+  
+  # Admin email for Let's Encrypt registration and notifications.
+  letsencryptEmail: admin@example.com
+  
+  # Hostnames for all platform services.
+  wordpressHost: wp.example.com
+  jenkinsHost: jenkins.example.com
+  glpiHost: glpi.example.com
+  supersetHost: bi.example.com
+  passboltHost: passbolt.example.com
+  
+  # Full base URL required by Passbolt application logic.
+  passboltBaseUrl: https://passbolt.example.com
+  
+  portainerHost: portainer.example.com

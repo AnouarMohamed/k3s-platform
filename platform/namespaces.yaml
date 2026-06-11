@@ -1,11 +1,24 @@
+# Platform Namespace Definitions
+# This file defines the logical segmentation of the cluster into functional zones.
+# Each namespace is hardened using Pod Security Standards (PSS) labels.
+
+# 'edge' namespace: For ingress controllers and edge-facing services.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: edge
   labels:
     app.kubernetes.io/part-of: ito-k3s-platform
+    # SECURITY: Enforce 'baseline' policy to prevent common privilege escalation.
     pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    # SECURITY: Audit and Warn on 'restricted' to prepare for high-security hardening.
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
 ---
+# 'apps' namespace: For business applications and stateful workloads.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -13,7 +26,13 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ito-k3s-platform
     pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
 ---
+# 'data' namespace: For databases and persistent storage backends.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -21,7 +40,13 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ito-k3s-platform
     pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
 ---
+# 'ops' namespace: For monitoring, logging, and platform administrative tools.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -29,3 +54,8 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ito-k3s-platform
     pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
