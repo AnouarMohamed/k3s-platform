@@ -39,7 +39,10 @@ spec:
     - Egress
   egress:
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
             matchLabels:
               app.kubernetes.io/name: wordpress-db
       ports:
@@ -60,7 +63,10 @@ spec:
     - Egress
   egress:
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
             matchLabels:
               app.kubernetes.io/name: passbolt-db
       ports:
@@ -82,7 +88,10 @@ spec:
     - Egress
   egress:
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
             matchLabels:
               app.kubernetes.io/name: wordpress-db
       ports:
@@ -102,7 +111,10 @@ spec:
     - Egress
   egress:
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data
+          podSelector:
             matchLabels:
               app.kubernetes.io/name: passbolt-db
       ports:

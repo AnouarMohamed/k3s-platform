@@ -15,7 +15,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: wordpress-db
-  namespace: apps
+  namespace: data
 spec:
   accessModes:
     - ReadWriteOnce
@@ -28,7 +28,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: wordpress-db
-  namespace: apps
+  namespace: data
   labels:
     app.kubernetes.io/name: wordpress-db
     app.kubernetes.io/part-of: ito-k3s-platform
@@ -111,7 +111,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: wordpress-db
-  namespace: apps
+  namespace: data
 spec:
   selector:
     app.kubernetes.io/name: wordpress-db
@@ -172,7 +172,7 @@ spec:
               memory: 512Mi
           env:
             - name: WORDPRESS_DATABASE_HOST
-              value: wordpress-db.apps.svc.cluster.local
+              value: wordpress-db.data.svc.cluster.local
             - name: WORDPRESS_DATABASE_PORT_NUMBER
               value: "3306"
             - name: WORDPRESS_DATABASE_USER

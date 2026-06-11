@@ -41,8 +41,8 @@ For a specific snapshot, add `RESTIC_SNAPSHOT=<snapshot-id>`.
 Start the database and keep WordPress stopped:
 
 ```bash
-kubectl -n apps scale deploy/wordpress-db --replicas=1
-kubectl -n apps rollout status deploy/wordpress-db
+kubectl -n data scale deploy/wordpress-db --replicas=1
+kubectl -n data rollout status deploy/wordpress-db
 ```
 
 Create a restore Job. The init container pulls the SQL dump from Restic, then the MySQL client container imports it into the running database:
@@ -84,7 +84,7 @@ spec:
             - |
               sql_file="$(find /restore/backup -name 'wordpress-*.sql' | sort | tail -1)"
               test -n "${sql_file}"
-              mysql -h wordpress-db.apps.svc.cluster.local -u root wordpress < "${sql_file}"
+              mysql -h wordpress-db.data.svc.cluster.local -u root wordpress < "${sql_file}"
           env:
             - name: MYSQL_PWD
               valueFrom:

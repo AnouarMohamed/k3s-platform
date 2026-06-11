@@ -14,7 +14,7 @@ help:
 	  '  make validate   Run cluster validation checks' \
 	  '  make diff       Show server-side diff for the Kustomize tree' \
 	  '  make check      Render manifests and run static repository checks' \
-	  '  make production-check Run stricter production readiness checks' \
+	  '  make production-check Run structural production readiness checks; set REQUIRE_REAL_PRODUCTION_VALUES=true for cutover gates' \
 	  '  make restore-volume Restore a Restic volume snapshot into a PVC; requires RESTORE_TAG, TARGET_PVC, CONFIRM_RESTORE=yes'
 
 bootstrap:

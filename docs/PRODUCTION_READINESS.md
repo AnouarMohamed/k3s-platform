@@ -8,7 +8,7 @@ The repo now treats unsafe defaults as deployment blockers:
 
 - `make apply` refuses example domains and `admin@example.com`.
 - `make secrets` applies SOPS-encrypted secrets from Git.
-- `make production-check` fails if encrypted secrets are missing.
+- `make production-check` validates production controls structurally; `REQUIRE_REAL_PRODUCTION_VALUES=true make production-check` fails if encrypted secrets or real settings are missing.
 - `make check` renders the tree and rejects floating `latest` images.
 - app images use pinned tags with digests.
 - NetworkPolicy defaults to deny ingress and egress.
@@ -36,7 +36,7 @@ Do not cut over a service until these are true:
 
 1. `platform/settings.yaml` contains real production domains and email.
 2. `secrets/production.enc.yaml` exists and decrypts for the operator or GitOps controller.
-3. `make check` and `make production-check` pass.
+3. `make check`, `make production-check`, and `REQUIRE_REAL_PRODUCTION_VALUES=true make production-check` pass.
 4. `make secrets` has applied required runtime Secrets.
 5. `kubectl diff -k .` has been reviewed.
 6. cert-manager can issue the certificate for the host.

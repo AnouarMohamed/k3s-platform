@@ -51,8 +51,8 @@ Do not assume changing the hash file will modify an already initialized Portaine
 Rotate the database credential at MariaDB first, then update the app Secret:
 
 ```bash
-db_pod="$(kubectl -n apps get pod -l app.kubernetes.io/name=passbolt-db -o jsonpath='{.items[0].metadata.name}')"
-kubectl -n apps exec "${db_pod}" -- sh -ec 'mariadb -u passbolt -p"${MYSQL_PASSWORD}" -e "ALTER USER '\''passbolt'\''@'\''%'\'' IDENTIFIED BY '\''<new-password>'\''; FLUSH PRIVILEGES;"'
+db_pod="$(kubectl -n data get pod -l app.kubernetes.io/name=passbolt-db -o jsonpath='{.items[0].metadata.name}')"
+kubectl -n data exec "${db_pod}" -- sh -ec 'mariadb -u passbolt -p"${MYSQL_PASSWORD}" -e "ALTER USER '\''passbolt'\''@'\''%'\'' IDENTIFIED BY '\''<new-password>'\''; FLUSH PRIVILEGES;"'
 ```
 
 Update `PASSBOLT_DB_PASSWORD`, run `make encrypt-secrets`, `make secrets`, then restart Passbolt and verify login:
@@ -68,8 +68,8 @@ Rotate the database user and Secret together during downtime:
 
 ```bash
 kubectl -n apps scale deploy/wordpress-demo --replicas=0
-db_pod="$(kubectl -n apps get pod -l app.kubernetes.io/name=wordpress-db -o jsonpath='{.items[0].metadata.name}')"
-kubectl -n apps exec "${db_pod}" -- sh -ec 'mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "ALTER USER '\''wordpress'\''@'\''%'\'' IDENTIFIED BY '\''<new-password>'\''; FLUSH PRIVILEGES;"'
+db_pod="$(kubectl -n data get pod -l app.kubernetes.io/name=wordpress-db -o jsonpath='{.items[0].metadata.name}')"
+kubectl -n data exec "${db_pod}" -- sh -ec 'mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "ALTER USER '\''wordpress'\''@'\''%'\'' IDENTIFIED BY '\''<new-password>'\''; FLUSH PRIVILEGES;"'
 ```
 
 Update `WORDPRESS_DB_PASSWORD`, encrypt/apply secrets, and bring WordPress back:

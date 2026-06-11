@@ -7,8 +7,9 @@ metadata:
   name: platform-settings
   namespace: ops
 data:
-  # The ClusterIssuer to be used for TLS certificates (letsencrypt-staging or letsencrypt-production).
-  clusterIssuer: letsencrypt-production
+  # Default to staging for safe first applies. Change to letsencrypt-production before real cutover.
+  # make production-check does not currently gate on this value.
+  clusterIssuer: letsencrypt-staging
   
   # Admin email for Let's Encrypt registration and notifications.
   letsencryptEmail: admin@example.com

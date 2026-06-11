@@ -105,13 +105,16 @@ Recommended environments:
 1. `ito-staging` for DNS, certs, backups, and upgrade rehearsals.
 2. `ito-prod` after restore drills and rollback are proven.
 
-Each environment can later have its own cluster entrypoint:
+This repository does not currently include `clusters/` overlays. The active Kustomize entrypoint is the repository root. A future multi-cluster layout should introduce a shared `base/` plus explicit environment overlays:
 
 ```text
+base/
 clusters/
   ito-staging/
   ito-prod/
 ```
+
+The overlay directories should point at `base/`, not at the repository root, to avoid recursive Kustomize accumulation.
 
 ## Why GitOps Is An Upgrade
 

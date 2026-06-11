@@ -38,25 +38,26 @@ The repo includes `secrets/production.plain.example.yaml` as the local starting 
 
 ## TLS
 
-The root Kustomize tree uses `platform/settings.yaml` to select the issuer injected into every Ingress. The default setting is `letsencrypt-production`, but `make apply` blocks the example ACME email and example hostnames.
+The root Kustomize tree uses `platform/settings.yaml` to select the issuer injected into every Ingress. The default setting is `letsencrypt-staging` for safe first applies. Change it to `letsencrypt-production` before real cutover. `make apply` blocks the example ACME email and example hostnames.
 
 Keep the staging issuer available for validation and incident work. Production issuance should happen only after DNS and HTTP-01 routing are confirmed.
 
 ## Network Policies
 
-The repo applies default-deny ingress and egress in `apps` and `data`.
+The repo applies default-deny ingress and egress in `apps`, `data`, and `ops`.
 
 Allowed paths are explicit:
 
 - ingress-nginx namespace -> each frontend app on its service port.
-- WordPress -> WordPress DB on TCP 3306.
-- Passbolt -> Passbolt DB on TCP 3306.
-- backup jobs -> their database targets and public S3-compatible HTTPS endpoint.
+- WordPress in `apps` -> WordPress DB in `data` on TCP 3306.
+- Passbolt in `apps` -> Passbolt DB in `data` on TCP 3306.
+- backup jobs in `apps` -> database targets in `data` and public S3-compatible HTTPS endpoint.
 - app pods -> kube-dns on TCP/UDP 53.
 - selected app pods -> public TCP 80/443.
 - selected mail-capable app pods -> public SMTP ports 25/465/587.
 - Jenkins -> public TCP 22 for Git SSH.
 - Jenkins agents labelled `jenkins.io/agent=true` -> Jenkins TCP 50000.
+- Prometheus, Grafana, Alertmanager, Loki, and Promtail use explicit telemetry policies after `ops` default-deny.
 
 The old namespace-wide internal allow has been removed.
 

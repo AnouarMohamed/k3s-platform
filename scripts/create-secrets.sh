@@ -53,6 +53,7 @@ require_secret() {
 # Validate all required secrets for the applications
 require_secret MYSQL_ROOT_PASSWORD
 require_secret WORDPRESS_DB_PASSWORD
+require_secret WORDPRESS_BACKUP_PASSWORD
 require_secret WORDPRESS_ADMIN_USERNAME
 require_secret WORDPRESS_ADMIN_PASSWORD
 require_secret WORDPRESS_ADMIN_EMAIL
@@ -63,6 +64,8 @@ require_secret SUPERSET_ADMIN_LASTNAME
 require_secret SUPERSET_ADMIN_EMAIL
 require_secret SUPERSET_ADMIN_PASSWORD
 require_secret PASSBOLT_DB_PASSWORD
+require_secret PASSBOLT_DB_ROOT_PASSWORD
+require_secret PASSBOLT_BACKUP_PASSWORD
 require_secret PORTAINER_ADMIN_PASSWORD_HASH
 require_secret RESTIC_REPOSITORY
 require_secret RESTIC_PASSWORD
@@ -76,6 +79,7 @@ require_secret ALERTMANAGER_WEBHOOK_URL
 # Ensure the 'apps' namespace exists before creating secrets
 echo "Ensuring 'apps' namespace exists..."
 kubectl create namespace apps --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace data --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace ops --dry-run=client -o yaml | kubectl apply -f -
 
 # Create or update secrets in the cluster.
@@ -85,9 +89,17 @@ echo "Applying wordpress-demo-secret..."
 kubectl -n apps create secret generic wordpress-demo-secret \
   --from-literal=MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD}" \
   --from-literal=WORDPRESS_DB_PASSWORD="${WORDPRESS_DB_PASSWORD}" \
+  --from-literal=WORDPRESS_BACKUP_PASSWORD="${WORDPRESS_BACKUP_PASSWORD}" \
   --from-literal=WORDPRESS_ADMIN_USERNAME="${WORDPRESS_ADMIN_USERNAME}" \
   --from-literal=WORDPRESS_ADMIN_PASSWORD="${WORDPRESS_ADMIN_PASSWORD}" \
   --from-literal=WORDPRESS_ADMIN_EMAIL="${WORDPRESS_ADMIN_EMAIL}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Applying wordpress-demo-secret in data namespace..."
+kubectl -n data create secret generic wordpress-demo-secret \
+  --from-literal=MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD}" \
+  --from-literal=WORDPRESS_DB_PASSWORD="${WORDPRESS_DB_PASSWORD}" \
+  --from-literal=WORDPRESS_BACKUP_PASSWORD="${WORDPRESS_BACKUP_PASSWORD}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Applying superset-secret..."
@@ -103,6 +115,15 @@ kubectl -n apps create secret generic superset-secret \
 echo "Applying passbolt-secret..."
 kubectl -n apps create secret generic passbolt-secret \
   --from-literal=PASSBOLT_DB_PASSWORD="${PASSBOLT_DB_PASSWORD}" \
+  --from-literal=PASSBOLT_DB_ROOT_PASSWORD="${PASSBOLT_DB_ROOT_PASSWORD}" \
+  --from-literal=PASSBOLT_BACKUP_PASSWORD="${PASSBOLT_BACKUP_PASSWORD}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Applying passbolt-secret in data namespace..."
+kubectl -n data create secret generic passbolt-secret \
+  --from-literal=PASSBOLT_DB_PASSWORD="${PASSBOLT_DB_PASSWORD}" \
+  --from-literal=PASSBOLT_DB_ROOT_PASSWORD="${PASSBOLT_DB_ROOT_PASSWORD}" \
+  --from-literal=PASSBOLT_BACKUP_PASSWORD="${PASSBOLT_BACKUP_PASSWORD}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Applying portainer-secret..."

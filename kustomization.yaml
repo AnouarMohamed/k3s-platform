@@ -27,6 +27,7 @@ resources:
   - policies/allow-ingress-to-apps.yaml
   - policies/allow-app-db.yaml
   - policies/allow-app-egress.yaml
+  - policies/allow-ops-telemetry.yaml
   - apps/wordpress-demo
   - apps/jenkins
   - apps/glpi

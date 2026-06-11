@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+age_recipients="${SOPS_AGE_RECIPIENTS:-}"
+
+if [[ -z "${age_recipients}" || "${age_recipients}" == *age1replacewithyourpublicrecipient* ]]; then
+  echo "SOPS_AGE_RECIPIENTS must contain one or more real Age public recipients, not the example placeholder." >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_DIR}"
@@ -10,11 +17,6 @@ encrypted="${SOPS_ENCRYPTED_SECRETS_FILE:-secrets/production.enc.yaml}"
 
 if ! command -v sops >/dev/null 2>&1; then
   echo "sops is required. Install SOPS before encrypting production secrets." >&2
-  exit 1
-fi
-
-if [[ -z "${SOPS_AGE_RECIPIENTS:-}" ]]; then
-  echo "SOPS_AGE_RECIPIENTS must contain one or more Age public recipients." >&2
   exit 1
 fi
 
@@ -29,7 +31,7 @@ if grep -Eq 'replace-|change-me|example\.com|admin@example\.com' "${plain}"; the
 fi
 
 sops --encrypt \
-  --age "${SOPS_AGE_RECIPIENTS}" \
+  --age "${age_recipients}" \
   --encrypted-regex '^(data|stringData)$' \
   "${plain}" > "${encrypted}"
 

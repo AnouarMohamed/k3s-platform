@@ -12,9 +12,11 @@ flowchart TB
   lb --> ingress[ingress-nginx Controller]
   ingress --> routes[Kubernetes Ingress Objects]
   routes --> apps[apps namespace]
-  apps --> services[Services]
-  services --> pods[Deployments / Pods]
-  pods --> pvc[(PVC / local-path-retain)]
+  apps --> services[App Services]
+  services --> pods[App Deployments / Pods]
+  pods --> data[data namespace databases]
+  pods --> pvc[(App PVC / local-path-retain)]
+  data --> dbpvc[(Database PVC / local-path-retain)]
   cert[cert-manager] --> ingress
   issuer[ClusterIssuer] --> cert
   git[Git repository] --> kustomize[Kustomize root]
@@ -27,8 +29,8 @@ flowchart TB
 | --- | --- | --- |
 | `ingress-nginx` | Helm-managed ingress controller | Public HTTP/S entry layer. |
 | `cert-manager` | Helm-managed certificate controller | ACME automation and certificate lifecycle. |
-| `apps` | Application workloads | Keeps business workloads separate from controllers. |
-| `data` | Dedicated data workloads when split out later | Reserved for stricter data isolation. |
+| `apps` | Application workloads | Holds app frontends, admin tools, app PVCs, and backup CronJobs. |
+| `data` | Database workloads | Holds WordPress MySQL and Passbolt MariaDB Deployments, Services, and PVCs. |
 | `ops` | Operations and observability | Holds platform settings, Prometheus, Alertmanager, Grafana, Loki, and cluster-state collectors. |
 | `node-observability` | Node-level observability | Holds hostPath collectors such as Promtail and node-exporter. |
 | `edge` | Future edge helpers | Reserved for custom edge tools if the architecture grows. |
@@ -57,7 +59,7 @@ cert-manager owns certificate lifecycle. The repository defines:
 - `letsencrypt-staging` for validation.
 - `letsencrypt-production` for real public certificates.
 
-The selected issuer comes from `platform/settings.yaml`. `make apply` blocks example hostnames and email addresses so production apply requires deliberate values.
+The selected issuer comes from `platform/settings.yaml`. The default is `letsencrypt-staging` for safe first applies. Change it to `letsencrypt-production` before real cutover after DNS and HTTP-01 routing are proven.
 
 ## Storage Strategy
 
@@ -82,11 +84,11 @@ The network model is default-deny for ingress and egress in `apps` and `data`.
 Allowed traffic is specific:
 
 - ingress-nginx reaches only frontend pods on their published ports.
-- app frontends reach only their matching database pods on TCP 3306.
+- app frontends in `apps` reach only their matching database pods in `data` on TCP 3306.
 - pods reach kube-dns on TCP/UDP 53.
 - selected apps reach public web endpoints on TCP 80/443.
 - selected apps reach SMTP endpoints on TCP 25/465/587.
-- backup jobs reach their database targets and S3-compatible HTTPS endpoints.
+- backup jobs in `apps` reach their database targets in `data` and S3-compatible HTTPS endpoints.
 - Jenkins reaches Git SSH on TCP 22.
 - labelled Jenkins agents reach Jenkins TCP 50000.
 
@@ -96,11 +98,11 @@ There is no namespace-wide internal allow.
 
 | Service | K3s object set |
 | --- | --- |
-| WordPress | Deployment, MySQL Deployment, Services, Ingress, PVCs |
+| WordPress | App Deployment in `apps`, MySQL Deployment in `data`, Services, Ingress, PVCs |
 | Jenkins | Deployment, Service, Ingress, PVC |
 | GLPI | Deployment, Service, Ingress, PVC |
 | Superset | Deployment, Service, Ingress, PVC |
-| Passbolt | Passbolt Deployment, MariaDB Deployment, Services, Ingress, PVCs |
+| Passbolt | Passbolt Deployment in `apps`, MariaDB Deployment in `data`, Services, Ingress, PVCs |
 | Portainer | Deployment, Service, Ingress, PVC |
 
 ## Production Upgrade Path

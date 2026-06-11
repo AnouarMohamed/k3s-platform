@@ -2,7 +2,7 @@
 # Purpose: Establishes a "Zero-Trust" networking baseline.
 # Posture: Default-Deny for all Ingress and Egress traffic.
 # Flow: 
-#   1. By default, all traffic to/from pods in the 'apps' and 'data' namespaces is blocked.
+#   1. By default, all traffic to/from pods in the 'apps', 'data', and 'ops' namespaces is blocked.
 #   2. Specific 'allow' policies must be created to permit necessary communication.
 #   3. This prevents lateral movement in case of a pod compromise.
 apiVersion: networking.k8s.io/v1
@@ -22,6 +22,18 @@ kind: NetworkPolicy
 metadata:
   name: default-deny
   namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Default-deny for the 'ops' namespace. Telemetry components must declare explicit traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: ops
 spec:
   podSelector: {}
   policyTypes:

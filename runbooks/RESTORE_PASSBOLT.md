@@ -41,8 +41,8 @@ For a specific snapshot, add `RESTIC_SNAPSHOT=<snapshot-id>`.
 Start the database and keep Passbolt stopped:
 
 ```bash
-kubectl -n apps scale deploy/passbolt-db --replicas=1
-kubectl -n apps rollout status deploy/passbolt-db
+kubectl -n data scale deploy/passbolt-db --replicas=1
+kubectl -n data rollout status deploy/passbolt-db
 ```
 
 Create a restore Job. The init container pulls the SQL dump from Restic, then the MariaDB client container imports it into the running database:
@@ -84,7 +84,7 @@ spec:
             - |
               sql_file="$(find /restore/backup -name 'passbolt-*.sql' | sort | tail -1)"
               test -n "${sql_file}"
-              mariadb -h passbolt-db.apps.svc.cluster.local -u passbolt passbolt < "${sql_file}"
+              mariadb -h passbolt-db.data.svc.cluster.local -u passbolt passbolt < "${sql_file}"
           env:
             - name: MARIADB_PWD
               valueFrom:

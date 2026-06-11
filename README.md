@@ -61,7 +61,9 @@ flowchart TB
   ingress --> certs[cert-manager]
   ingress --> appIngress[Application Ingresses]
   appIngress --> apps[apps namespace]
-  apps --> pvc[(local-path-retain PVCs)]
+  apps --> data[data namespace]
+  apps --> pvc[(app PVCs)]
+  data --> dbpvc[(database PVCs)]
   apps --> backups[Restic CronJobs]
   backups --> s3[(S3-compatible backup target)]
   prom[Prometheus] --> alertmanager[Alertmanager]
@@ -83,7 +85,6 @@ flowchart TB
 | `scripts/` | Bootstrap, apply, validation, secret, readiness, and restore helpers |
 | `docs/` | Architecture, security, operations, GitOps, validation, decisions, and presentation docs |
 | `runbooks/` | Incident and maintenance procedures |
-| `clusters/ito-prod/` | Production cluster notes and future overlay location |
 
 ## Prerequisites
 
@@ -268,7 +269,7 @@ Vanilla Kubernetes NetworkPolicy cannot enforce FQDN egress. A Cilium example is
 | `make secrets` | Apply SOPS-encrypted Kubernetes Secrets |
 | `make local-secrets` | Break-glass Secret creation from `.env` |
 | `make check` | Render manifests and run static repository checks |
-| `make production-check` | Enforce production gates before cutover |
+| `make production-check` | Run structural production readiness checks; set `REQUIRE_REAL_PRODUCTION_VALUES=true` for cutover gates |
 | `make diff` | Show the Kustomize diff |
 | `make apply` | Apply platform and app manifests |
 | `make validate` | Run cluster validation checks |
@@ -281,7 +282,7 @@ Before cutting over a real hostname, prove these:
 - `platform/settings.yaml` contains real domains, email, and admin allowlist CIDR.
 - `secrets/production.enc.yaml` exists, decrypts, and is committed.
 - `make check` passes.
-- `make production-check` passes.
+- `make production-check` passes, and `REQUIRE_REAL_PRODUCTION_VALUES=true make production-check` passes before cutover.
 - `make secrets` has applied required runtime Secrets.
 - `kubectl diff -k .` has been reviewed.
 - cert-manager can issue the relevant certificate.
@@ -318,6 +319,7 @@ This repo cannot supply:
 - vulnerability scanning and image update cadence.
 - external auth provider configuration.
 - HA decision for the K3s control plane and storage layer.
+- multi-cluster overlays; the current entrypoint is the repository root.
 
 Those are production facts, not reusable sanitized config.
 

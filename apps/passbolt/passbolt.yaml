@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: passbolt-db
-  namespace: apps
+  namespace: data
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +15,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: passbolt-db
-  namespace: apps
+  namespace: data
   labels:
     app.kubernetes.io/name: passbolt-db
     app.kubernetes.io/part-of: ito-k3s-platform
@@ -71,8 +71,11 @@ spec:
                 secretKeyRef:
                   name: passbolt-secret
                   key: PASSBOLT_DB_PASSWORD
-            - name: MYSQL_RANDOM_ROOT_PASSWORD
-              value: "true"
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: passbolt-secret
+                  key: PASSBOLT_DB_ROOT_PASSWORD
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
@@ -95,7 +98,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: passbolt-db
-  namespace: apps
+  namespace: data
 spec:
   selector:
     app.kubernetes.io/name: passbolt-db
@@ -154,6 +157,7 @@ spec:
           image: passbolt/passbolt:5.13.0-1-ce-non-root@sha256:c7f0a4635ba36294a1cb935bf37497b560717411f9743921ac5dd66dc054335b
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -171,7 +175,7 @@ spec:
             - name: APP_FULL_BASE_URL
               value: https://passbolt.example.com
             - name: DATASOURCES_DEFAULT_HOST
-              value: passbolt-db.apps.svc.cluster.local
+              value: passbolt-db.data.svc.cluster.local
             - name: DATASOURCES_DEFAULT_DATABASE
               value: passbolt
             - name: DATASOURCES_DEFAULT_USERNAME
@@ -184,6 +188,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /etc/passbolt
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /healthcheck/status.json
@@ -200,6 +206,8 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: passbolt-data
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

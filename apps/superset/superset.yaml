@@ -48,6 +48,7 @@ spec:
           image: apache/superset:5.0.0@sha256:09735adaae3945c5a8fabbeca31a7954c8c74de195702ba61622aee8604d5c55
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -110,6 +111,8 @@ spec:
           volumeMounts:
             - name: home
               mountPath: /app/superset_home
+            - name: tmp
+              mountPath: /tmp
           # readinessProbe: Verifies the Superset health endpoint is reachable.
           readinessProbe:
             httpGet:
@@ -128,6 +131,8 @@ spec:
         - name: home
           persistentVolumeClaim:
             claimName: superset-home
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

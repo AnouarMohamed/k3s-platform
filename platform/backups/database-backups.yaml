@@ -23,19 +23,43 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           initContainers:
-            - name: dump
+            - name: create-backup-user
               image: mysql:8.4.9@sha256:c36050afdca850f23cef85703f84c7531a5ae155a11b5ee1c60acb09937c4084
               command: ["/bin/sh", "-ec"]
               args:
                 - |
-                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
-                  mysqldump -h wordpress-db.apps.svc.cluster.local -u root wordpress > "/backup/wordpress-${ts}.sql"
+                  escaped_password="$(printf '%s' "${WORDPRESS_BACKUP_PASSWORD}" | sed "s/'/''/g")"
+                  mysql -h wordpress-db.data.svc.cluster.local -u root <<SQL
+                  CREATE USER IF NOT EXISTS 'backup'@'%' IDENTIFIED BY '${escaped_password}';
+                  ALTER USER 'backup'@'%' IDENTIFIED BY '${escaped_password}';
+                  GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON wordpress.* TO 'backup'@'%';
+                  FLUSH PRIVILEGES;
+                  SQL
               env:
                 - name: MYSQL_PWD
                   valueFrom:
                     secretKeyRef:
                       name: wordpress-demo-secret
                       key: MYSQL_ROOT_PASSWORD
+                - name: WORDPRESS_BACKUP_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: wordpress-demo-secret
+                      key: WORDPRESS_BACKUP_PASSWORD
+            - name: dump
+              image: mysql:8.4.9@sha256:c36050afdca850f23cef85703f84c7531a5ae155a11b5ee1c60acb09937c4084
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  mysqldump --single-transaction --routines --events --triggers --no-tablespaces \
+                    -h wordpress-db.data.svc.cluster.local -u backup wordpress > "/backup/wordpress-${ts}.sql"
+              env:
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: wordpress-demo-secret
+                      key: WORDPRESS_BACKUP_PASSWORD
               volumeMounts:
                 - name: dump
                   mountPath: /backup
@@ -93,19 +117,43 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           initContainers:
+            - name: create-backup-user
+              image: mariadb:10.11.18@sha256:5a5c675881ef3fd1c1da9b0a3bfd6ee82edbe39cd9e32e06be18034c37235e0e
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  escaped_password="$(printf '%s' "${PASSBOLT_BACKUP_PASSWORD}" | sed "s/'/''/g")"
+                  mariadb -h passbolt-db.data.svc.cluster.local -u root <<SQL
+                  CREATE USER IF NOT EXISTS 'backup'@'%' IDENTIFIED BY '${escaped_password}';
+                  ALTER USER 'backup'@'%' IDENTIFIED BY '${escaped_password}';
+                  GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON passbolt.* TO 'backup'@'%';
+                  FLUSH PRIVILEGES;
+                  SQL
+              env:
+                - name: MARIADB_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: passbolt-secret
+                      key: PASSBOLT_DB_ROOT_PASSWORD
+                - name: PASSBOLT_BACKUP_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: passbolt-secret
+                      key: PASSBOLT_BACKUP_PASSWORD
             - name: dump
               image: mariadb:10.11.18@sha256:5a5c675881ef3fd1c1da9b0a3bfd6ee82edbe39cd9e32e06be18034c37235e0e
               command: ["/bin/sh", "-ec"]
               args:
                 - |
                   ts="$(date -u +%Y%m%dT%H%M%SZ)"
-                  mariadb-dump -h passbolt-db.apps.svc.cluster.local -u passbolt passbolt > "/backup/passbolt-${ts}.sql"
+                  mariadb-dump --single-transaction --routines --events --triggers \
+                    -h passbolt-db.data.svc.cluster.local -u backup passbolt > "/backup/passbolt-${ts}.sql"
               env:
                 - name: MARIADB_PWD
                   valueFrom:
                     secretKeyRef:
                       name: passbolt-secret
-                      key: PASSBOLT_DB_PASSWORD
+                      key: PASSBOLT_BACKUP_PASSWORD
               volumeMounts:
                 - name: dump
                   mountPath: /backup

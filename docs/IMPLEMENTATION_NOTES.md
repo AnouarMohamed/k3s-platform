@@ -13,6 +13,7 @@ The repo moved from a static config set toward an operational K3s platform. The 
 - baseline alert rules for backups, workloads, PVCs, targets, and root disk.
 - admin ingress source allowlists.
 - stricter NetworkPolicies and default-deny egress.
+- database workloads moved into the `data` namespace.
 - stronger runtime hardening and resource guardrails.
 - production checks that block unsafe placeholders.
 
@@ -67,8 +68,8 @@ Baseline rules currently cover target availability, crash loops, deployment repl
 The repository now uses default-deny ingress and egress for application namespaces, then allows only documented flows:
 
 - ingress-nginx to frontend services.
-- frontend apps to their own database.
-- backup jobs to their database and S3-compatible HTTPS endpoint.
+- frontend apps in `apps` to their own database in `data`.
+- backup jobs in `apps` to their database in `data` and S3-compatible HTTPS endpoint.
 - DNS egress.
 - selected app web egress.
 - selected app SMTP egress.
@@ -111,7 +112,7 @@ make apply
 make validate
 ```
 
-`make production-check` intentionally fails until real settings and `secrets/production.enc.yaml` exist.
+`make production-check` validates structural controls against the sanitized repo. Set `REQUIRE_REAL_PRODUCTION_VALUES=true` to require real settings and `secrets/production.enc.yaml` before cutover.
 
 ## Known Remaining Work
 
