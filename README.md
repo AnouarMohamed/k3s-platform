@@ -112,7 +112,6 @@ These manifests are ready infrastructure configuration, but production still req
 
 ## Safety Notes
 
-- Do not commit `.env`.
 - Do not commit kubeconfig files.
 - Do not commit generated TLS material.
 - Do not apply with example domains.
