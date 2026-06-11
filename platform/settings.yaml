@@ -24,3 +24,6 @@ data:
   passboltBaseUrl: https://passbolt.example.com
   
   portainerHost: portainer.example.com
+
+  # Public admin surfaces are restricted to this CIDR by ingress-nginx.
+  adminWhitelistSourceRange: 203.0.113.10/32

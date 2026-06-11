@@ -13,13 +13,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_DIR}"
 
+KUSTOMIZE_PATH="${KUSTOMIZE_PATH:-.}"
+
 # Safety check: Prevent accidental deployment with example production values.
-# It searches for 'example.com' or 'admin@example.com' in platform/settings.yaml.
-# This ensures that users have configured their own domain and email for Let's Encrypt.
-if grep -Eq '(^|[^[:alnum:]])(example\.com|admin@example\.com)([^[:alnum:]]|$)' platform/settings.yaml; then
+# It searches for example domains, example ACME email, TEST-NET IPs, and public admin allowlists.
+if grep -REq 'example\.com|admin@example\.com|203\.0\.113\.|0\.0\.0\.0/0' platform/settings.yaml; then
   if [[ "${ALLOW_EXAMPLE_VALUES:-false}" != "true" ]]; then
-    echo "Error: platform/settings.yaml still contains example production values." >&2
-    echo "Replace domains and letsencryptEmail, or set ALLOW_EXAMPLE_VALUES=true for a non-production test apply." >&2
+    echo "Error: production settings still contain example values or unsafe admin allowlists." >&2
+    echo "Replace platform/clusters settings, or set ALLOW_EXAMPLE_VALUES=true for a non-production test apply." >&2
     exit 1
   fi
 fi
@@ -27,7 +28,7 @@ fi
 # Apply all manifests using Kustomize. 
 # This will create/update resources defined in kustomization.yaml and its references.
 echo "Applying manifests..."
-kubectl apply -k .
+kubectl apply -k "${KUSTOMIZE_PATH}"
 
 # Post-apply summary: Display the status of namespaces and ingresses to verify deployment.
 echo "Verifying deployment..."

@@ -37,14 +37,20 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: glpi
           image: elestio/glpi:11.0.7@sha256:fd65d78396f53600d57c4763097e3fde02d24236e901735a2b85036c1b1efb78
-          # allowPrivilegeEscalation: false - Minimizes risk by preventing privilege gain.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 80
               name: http
@@ -98,6 +104,9 @@ metadata:
   namespace: apps
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/whitelist-source-range: 203.0.113.10/32
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: nginx
   tls:

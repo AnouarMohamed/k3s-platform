@@ -37,13 +37,15 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: portainer
           image: portainer/portainer-ce:2.39.3-alpine@sha256:90ae993781c08a4dcd1f96c6547a072bb3f90b7ebd5e082d071ef1ad8a341373
-          # allowPrivilegeEscalation: false - Security hardening.
-          # capabilities: drop: [ALL] - Strips all privileges to minimize attack surface.
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -111,6 +113,9 @@ metadata:
   namespace: apps
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/whitelist-source-range: 203.0.113.10/32
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: nginx
   tls:

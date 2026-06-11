@@ -14,12 +14,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_DIR}"
 
+KUSTOMIZE_PATH="${KUSTOMIZE_PATH:-.}"
+
 # Create a temporary file for the fully rendered kustomize output
 rendered="$(mktemp)"
 trap 'rm -f "${rendered}"' EXIT
 
 # Render the complete set of manifests
-kubectl kustomize . > "${rendered}"
+kubectl kustomize "${KUSTOMIZE_PATH}" > "${rendered}"
 
 # Check 1: No floating ':latest' tags.
 # Why: Using 'latest' makes deployments unpredictable as the image content can change without notice.
@@ -42,6 +44,11 @@ fi
 # exact same bytes are deployed every time, protecting against tag drifting or registry compromises.
 if ! grep -Rqs 'sha256:' apps; then
   echo "Error: No image digest pins found in app manifests. Use digests for production stability." >&2
+  exit 1
+fi
+
+if grep -nE 'image: .+:(latest|stable)(@|$)' "${rendered}"; then
+  echo "Error: Floating platform image tag found in rendered manifests." >&2
   exit 1
 fi
 

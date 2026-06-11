@@ -37,13 +37,15 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: superset
           image: apache/superset:5.0.0@sha256:09735adaae3945c5a8fabbeca31a7954c8c74de195702ba61622aee8604d5c55
-          # allowPrivilegeEscalation: false - Security best practice to prevent privilege escalation.
-          # capabilities: drop: [ALL] - Minimizes the attack surface.
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -149,6 +151,9 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/whitelist-source-range: 203.0.113.10/32
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: nginx
   tls:

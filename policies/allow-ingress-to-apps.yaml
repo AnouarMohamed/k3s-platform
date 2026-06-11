@@ -21,7 +21,7 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
 ---
 # Allows GLPI traffic from the Ingress Controller on port 80.
 apiVersion: networking.k8s.io/v1
@@ -63,7 +63,7 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
 ---
 # Allows Jenkins web UI traffic on port 8080.
 apiVersion: networking.k8s.io/v1

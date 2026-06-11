@@ -20,6 +20,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: wordpress-demo
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backup-wordpress-db
       ports:
         - protocol: TCP
           port: 3306
@@ -41,6 +44,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: passbolt
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backup-passbolt-db
       ports:
         - protocol: TCP
           port: 3306

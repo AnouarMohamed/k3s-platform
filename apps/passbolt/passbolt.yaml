@@ -37,18 +37,23 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: mariadb
           image: mariadb:10.11.18@sha256:5a5c675881ef3fd1c1da9b0a3bfd6ee82edbe39cd9e32e06be18034c37235e0e
-          # allowPrivilegeEscalation: false - Prevents root-level exploits within the container.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 3306
               name: mysql
-          # resources: Moderate allocation for MariaDB in a password manager setup.
           resources:
             requests:
               cpu: 250m
@@ -71,13 +76,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
-          # readinessProbe: Uses MariaDB's healthcheck script to ensure the engine is ready.
           readinessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
             initialDelaySeconds: 30
             periodSeconds: 10
-          # livenessProbe: Restarts the DB if the connection or InnoDB fails.
           livenessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -140,17 +143,23 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: passbolt
-          image: passbolt/passbolt:5.13.0-1-ce@sha256:4b0d76c786bfca78b0362b7a24f1f6d55cb25c0333bd9beffd52ab3b5b829d37
+          image: passbolt/passbolt:5.13.0-1-ce-non-root@sha256:c7f0a4635ba36294a1cb935bf37497b560717411f9743921ac5dd66dc054335b
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
-          # resources: Passbolt (PHP/Nginx) requires consistent memory for encryption tasks.
           resources:
             requests:
               cpu: 250m
@@ -175,14 +184,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /etc/passbolt
-          # readinessProbe: Checks Passbolt's internal healthcheck JSON endpoint.
           readinessProbe:
             httpGet:
               path: /healthcheck/status.json
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20
-          # livenessProbe: Restarts the container if the Passbolt service becomes unhealthy.
           livenessProbe:
             httpGet:
               path: /healthcheck/status.json
@@ -214,6 +221,9 @@ metadata:
   namespace: apps
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/whitelist-source-range: 203.0.113.10/32
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: nginx
   tls:

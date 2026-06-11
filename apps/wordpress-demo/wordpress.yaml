@@ -49,24 +49,24 @@ spec:
       serviceAccountName: wordpress-db
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
-      # securityContext: Hardening at the pod level.
-      # seccompProfile: Uses the container runtime's default profile to filter system calls.
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: mysql
           image: mysql:8.4.9@sha256:c36050afdca850f23cef85703f84c7531a5ae155a11b5ee1c60acb09937c4084
-          # allowPrivilegeEscalation: false - Prevents the container process from gaining more 
-          # privileges than its parent, mitigating potential container breakout exploits.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 3306
               name: mysql
-          # resources:
-          #   requests: Minimum guaranteed resources; prevents scheduling if not available.
-          #   limits: Hard cap to prevent "noisy neighbor" effect and OOM kills.
           resources:
             requests:
               cpu: 250m
@@ -92,14 +92,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
-          # readinessProbe: Ensures the DB is actually ready to handle queries before 
-          # the Service starts routing traffic to it.
           readinessProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
             initialDelaySeconds: 20
             periodSeconds: 10
-          # livenessProbe: Detects if the MySQL process has hung and restarts the container.
           livenessProbe:
             exec:
               command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
@@ -149,15 +146,22 @@ spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: wordpress
-          image: wordpress:7.0.0-php8.4-apache@sha256:285195ddf57ad8e83548360fbeca026707e5cf0b55e440b16f6e2b4601e95cb7
+          image: bitnami/wordpress@sha256:334da5f84fe3cf1636c4aa5827fff5f2d2906b1c7e5db1d05586566755c09f2f
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
           resources:
             requests:
@@ -167,28 +171,43 @@ spec:
               cpu: 500m
               memory: 512Mi
           env:
-            - name: WORDPRESS_DB_HOST
-              value: wordpress-db.apps.svc.cluster.local:3306
-            - name: WORDPRESS_DB_USER
+            - name: WORDPRESS_DATABASE_HOST
+              value: wordpress-db.apps.svc.cluster.local
+            - name: WORDPRESS_DATABASE_PORT_NUMBER
+              value: "3306"
+            - name: WORDPRESS_DATABASE_USER
               value: wordpress
-            - name: WORDPRESS_DB_NAME
+            - name: WORDPRESS_DATABASE_NAME
               value: wordpress
-            - name: WORDPRESS_DB_PASSWORD
+            - name: WORDPRESS_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: wordpress-demo-secret
                   key: WORDPRESS_DB_PASSWORD
+            - name: WORDPRESS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: WORDPRESS_ADMIN_USERNAME
+            - name: WORDPRESS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: WORDPRESS_ADMIN_PASSWORD
+            - name: WORDPRESS_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-demo-secret
+                  key: WORDPRESS_ADMIN_EMAIL
           volumeMounts:
             - name: content
-              mountPath: /var/www/html
-          # readinessProbe: Verifies Apache is serving the WordPress site.
+              mountPath: /bitnami/wordpress
           readinessProbe:
             httpGet:
               path: /
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
-          # livenessProbe: Restarts the container if the PHP engine or Apache stalls.
           livenessProbe:
             httpGet:
               path: /

@@ -40,6 +40,7 @@ spec:
       # runAsUser: 1000 - Executes as the 'jenkins' user defined in the image.
       # fsGroup: 1000 - Ensures persistent volumes are writable by the jenkins user.
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
@@ -48,8 +49,6 @@ spec:
       containers:
         - name: jenkins
           image: jenkins/jenkins:2.555.3-lts-jdk21@sha256:e82bbdcffb6361c081ac66bbdcd5802a299b3631c78c3be04a0a91c7f952fff3
-          # allowPrivilegeEscalation: false - Security hardening.
-          # capabilities: drop: [ALL] - Removes all unnecessary kernel capabilities.
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -114,6 +113,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/whitelist-source-range: 203.0.113.10/32
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
 spec:
   ingressClassName: nginx
   tls:
