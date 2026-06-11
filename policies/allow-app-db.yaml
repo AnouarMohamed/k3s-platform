@@ -1,0 +1,46 @@
+# NetworkPolicy: Application-to-Database Ingress
+# Purpose: Permits specific application pods to connect to their dedicated database instances.
+# Flow: Application Pod (apps namespace) -> Database Pod (apps namespace)
+# Port: 3306 (MySQL/MariaDB standard)
+# Permissions: Least privilege; only the designated app can reach its corresponding DB.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-wordpress-to-wordpress-db
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: wordpress-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: wordpress-demo
+      ports:
+        - protocol: TCP
+          port: 3306
+---
+# Allows Passbolt application to reach its database.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-passbolt-to-passbolt-db
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: passbolt-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: passbolt
+      ports:
+        - protocol: TCP
+          port: 3306

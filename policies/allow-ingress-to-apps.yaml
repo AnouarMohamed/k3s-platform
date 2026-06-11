@@ -1,10 +1,17 @@
+# NetworkPolicy: Ingress Permissions
+# Purpose: Allows external traffic via the NGINX Ingress Controller to reach application pods.
+# Flow: Internet -> Ingress Controller (ingress-nginx namespace) -> App Pod (apps namespace)
+# Permissions: Restricted to specific destination ports and source namespace.
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-controller-to-apps
+  name: allow-ingress-to-wordpress
   namespace: apps
 spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: wordpress-demo
   policyTypes:
     - Ingress
   ingress:
@@ -15,9 +22,139 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+---
+# Allows GLPI traffic from the Ingress Controller on port 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-glpi
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: glpi
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# Allows Passbolt traffic from the Ingress Controller on port 80.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-passbolt
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: passbolt
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+---
+# Allows Jenkins web UI traffic on port 8080.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-jenkins
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: jenkins
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
         - protocol: TCP
           port: 8080
+---
+# Special permission for Jenkins Agents to connect to the Jenkins Controller.
+# This allows pods with label jenkins.io/agent: "true" from 'apps' or 'ops' namespaces.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-jenkins-agents
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: jenkins
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: apps
+          podSelector:
+            matchLabels:
+              jenkins.io/agent: "true"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ops
+          podSelector:
+            matchLabels:
+              jenkins.io/agent: "true"
+      ports:
+        - protocol: TCP
+          port: 50000
+---
+# Allows Superset traffic on port 8088.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-superset
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: superset
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
         - protocol: TCP
           port: 8088
+---
+# Allows Portainer traffic on port 9000.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-portainer
+  namespace: apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: portainer
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
         - protocol: TCP
           port: 9000
