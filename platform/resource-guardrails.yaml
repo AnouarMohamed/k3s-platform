@@ -1,0 +1,66 @@
+# Platform Resource Guardrails
+# These resources ensure cluster stability by preventing resource exhaustion.
+
+# ResourceQuota: Enforces hard limits on the total resources consumed within a namespace.
+# This prevents "noisy neighbors" from starving other workloads of CPU, Memory, or Storage.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: apps-compute-storage
+  namespace: apps
+spec:
+  hard:
+    requests.cpu: "6"
+    requests.memory: 12Gi
+    limits.cpu: "12"
+    limits.memory: 24Gi
+    persistentvolumeclaims: "24"
+    requests.storage: 250Gi
+    services: "40"
+    count/deployments.apps: "40"
+---
+# LimitRange: Sets default request/limit values for containers that don't specify them.
+# This ensures that every pod has at least a minimum resource allocation for stability.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: apps-default-container-limits
+  namespace: apps
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      default:
+        cpu: 500m
+        memory: 512Mi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: data-compute-storage
+  namespace: data
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "16"
+    requests.storage: 500Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: data-default-container-limits
+  namespace: data
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      default:
+        cpu: 500m
+        memory: 512Mi
