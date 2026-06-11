@@ -1,0 +1,305 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-wordpress-content
+  namespace: apps
+spec:
+  schedule: "12 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-wordpress-content
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag wordpress-content
+                  restic forget --tag wordpress-content --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: wordpress-content
+                readOnly: true
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-jenkins-home
+  namespace: apps
+spec:
+  schedule: "22 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-jenkins-home
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag jenkins-home
+                  restic forget --tag jenkins-home --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: jenkins-home
+                readOnly: true
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-glpi-data
+  namespace: apps
+spec:
+  schedule: "32 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-glpi-data
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag glpi-data
+                  restic forget --tag glpi-data --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: glpi-data
+                readOnly: true
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-superset-home
+  namespace: apps
+spec:
+  schedule: "42 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-superset-home
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag superset-home
+                  restic forget --tag superset-home --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: superset-home
+                readOnly: true
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-passbolt-data
+  namespace: apps
+spec:
+  schedule: "52 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-passbolt-data
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag passbolt-data
+                  restic forget --tag passbolt-data --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: passbolt-data
+                readOnly: true
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-portainer-data
+  namespace: apps
+spec:
+  schedule: "2 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-portainer-data
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /source --tag portainer-data
+                  restic forget --tag portainer-data --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: source
+              persistentVolumeClaim:
+                claimName: portainer-data
+                readOnly: true
+            - name: cache
+              emptyDir: {}

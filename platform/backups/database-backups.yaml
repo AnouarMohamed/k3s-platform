@@ -1,0 +1,139 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-wordpress-db
+  namespace: apps
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-wordpress-db
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: mysql:8.4.9@sha256:c36050afdca850f23cef85703f84c7531a5ae155a11b5ee1c60acb09937c4084
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  mysqldump -h wordpress-db.apps.svc.cluster.local -u root wordpress > "/backup/wordpress-${ts}.sql"
+              env:
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: wordpress-demo-secret
+                      key: MYSQL_ROOT_PASSWORD
+              volumeMounts:
+                - name: dump
+                  mountPath: /backup
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /backup --tag wordpress-db
+                  restic forget --tag wordpress-db --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: dump
+                  mountPath: /backup
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: dump
+              emptyDir: {}
+            - name: cache
+              emptyDir: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-passbolt-db
+  namespace: apps
+spec:
+  schedule: "47 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: backup-passbolt-db
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: mariadb:10.11.18@sha256:5a5c675881ef3fd1c1da9b0a3bfd6ee82edbe39cd9e32e06be18034c37235e0e
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  mariadb-dump -h passbolt-db.apps.svc.cluster.local -u passbolt passbolt > "/backup/passbolt-${ts}.sql"
+              env:
+                - name: MARIADB_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: passbolt-secret
+                      key: PASSBOLT_DB_PASSWORD
+              volumeMounts:
+                - name: dump
+                  mountPath: /backup
+          containers:
+            - name: restic
+              image: restic/restic:0.18.1@sha256:39d9072fb5651c80d75c7a811612eb60b4c06b32ffe87c2e9f3c7222e1797e76
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  restic snapshots || restic init
+                  restic backup /backup --tag passbolt-db
+                  restic forget --tag passbolt-db --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+              envFrom:
+                - secretRef:
+                    name: backup-s3-secret
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+                - name: dump
+                  mountPath: /backup
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: dump
+              emptyDir: {}
+            - name: cache
+              emptyDir: {}
