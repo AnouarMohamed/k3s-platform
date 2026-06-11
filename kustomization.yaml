@@ -12,6 +12,16 @@ resources:
   - platform/serviceaccounts.yaml
   - platform/resource-guardrails.yaml
   - platform/storage.yaml
+  - platform/backups/database-backups.yaml
+  - platform/backups/volume-backups.yaml
+  - platform/telemetry/node-exporter.yaml
+  - platform/telemetry/alertmanager.yaml
+  - platform/telemetry/prometheus-rules.yaml
+  - platform/telemetry/prometheus.yaml
+  - platform/telemetry/kube-state-metrics.yaml
+  - platform/telemetry/loki.yaml
+  - platform/telemetry/promtail.yaml
+  - platform/telemetry/grafana.yaml
   - platform/cert-manager/clusterissuers.yaml
   - policies/default-deny.yaml
   - policies/allow-ingress-to-apps.yaml
@@ -145,3 +155,34 @@ replacements:
         fieldPaths:
           - spec.rules.0.host
           - spec.tls.0.hosts.0
+
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.adminWhitelistSourceRange
+    targets:
+      - select:
+          kind: Ingress
+          name: jenkins
+        fieldPaths:
+          - metadata.annotations.[nginx.ingress.kubernetes.io/whitelist-source-range]
+      - select:
+          kind: Ingress
+          name: glpi
+        fieldPaths:
+          - metadata.annotations.[nginx.ingress.kubernetes.io/whitelist-source-range]
+      - select:
+          kind: Ingress
+          name: superset
+        fieldPaths:
+          - metadata.annotations.[nginx.ingress.kubernetes.io/whitelist-source-range]
+      - select:
+          kind: Ingress
+          name: passbolt
+        fieldPaths:
+          - metadata.annotations.[nginx.ingress.kubernetes.io/whitelist-source-range]
+      - select:
+          kind: Ingress
+          name: portainer
+        fieldPaths:
+          - metadata.annotations.[nginx.ingress.kubernetes.io/whitelist-source-range]

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_DIR}"
+
+KUSTOMIZE_PATH="${KUSTOMIZE_PATH:-.}"
+
+./scripts/check-manifests.sh
+
+if [[ ! -f secrets/production.enc.yaml ]]; then
+  echo "Missing secrets/production.enc.yaml. Production state is not reproducible from Git." >&2
+  exit 1
+fi
+
+if grep -REq 'example\.com|admin@example\.com|203\.0\.113\.|0\.0\.0\.0/0' platform/settings.yaml; then
+  echo "Example settings or unsafe admin allowlist still present." >&2
+  exit 1
+fi
+
+rendered="$(mktemp)"
+trap 'rm -f "${rendered}"' EXIT
+kubectl kustomize "${KUSTOMIZE_PATH}" > "${rendered}"
+
+for required in \
+  'kind: CronJob' \
+  'name: prometheus' \
+  'name: alertmanager' \
+  'name: node-exporter' \
+  'name: prometheus-rules' \
+  'name: grafana' \
+  'name: loki' \
+  'nginx.ingress.kubernetes.io/whitelist-source-range'; do
+  if ! grep -q "${required}" "${rendered}"; then
+    echo "Rendered manifests missing required production control: ${required}" >&2
+    exit 1
+  fi
+done
+
+echo "Production readiness check passed."
