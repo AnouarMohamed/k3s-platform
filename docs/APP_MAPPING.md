@@ -2,7 +2,7 @@
 
 ## Objective
 
-The K3s lab keeps the same service vocabulary as the Swarm platform, but translates it into Kubernetes objects. This is important for presentation and for engineering control: every migrated service should have a clear equivalent, a clear risk level, and a clear rollback path.
+The K3s platform keeps the same service vocabulary as the Swarm platform, but translates it into Kubernetes objects. This is important for presentation and for engineering control: every migrated service should have a clear equivalent, a clear risk level, and a clear rollback path.
 
 ## Mapping Table
 
@@ -13,7 +13,7 @@ The K3s lab keeps the same service vocabulary as the Swarm platform, but transla
 | GLPI | IT service management | Deployment, Service, Ingress, PVC | High | Keep in Swarm until database and attachments restore process is verified. |
 | Superset | BI/dashboard service | Deployment, Service, Ingress, PVC | Medium/high | Move after metadata database strategy and secret rotation are documented. |
 | Passbolt | Password manager | Deployment, MariaDB Deployment, Services, Ingress, PVCs | Very high | Last migration candidate because identity, GPG keys, JWT keys, and database integrity are critical. |
-| Portainer | Container management UI | Deployment, Service, Ingress, PVC | Medium | Useful as lab visibility, but production exposure must be restricted. |
+| Portainer | Container management UI | Deployment, Service, Ingress, PVC | Medium | Useful if exposure and RBAC are tightly controlled. |
 
 ## Translation Rules
 
@@ -31,14 +31,12 @@ The K3s lab keeps the same service vocabulary as the Swarm platform, but transla
 
 ### WordPress
 
-WordPress is the best learning target because it exercises every major platform primitive without being as sensitive as Passbolt or GLPI. It needs a web pod, a database pod, two PVCs, a Service, an Ingress, and TLS. The lab manifest is intentionally close to the Swarm pattern so the operational comparison remains clear.
+WordPress exercises every major platform primitive without being as sensitive as Passbolt or GLPI. It needs a web pod, a database pod, two PVCs, Services, Ingress, TLS, and internal DB policy.
 
 Production improvements:
 
 - use a managed database or a dedicated database StatefulSet.
 - separate media backup from database backup.
-- pin WordPress and MySQL image versions.
-- add resource requests and limits.
 - add scheduled dumps and restore drills.
 
 ### Jenkins
@@ -55,7 +53,7 @@ Production improvements:
 
 ### GLPI
 
-GLPI should be treated as a stateful business application. The lab deploys the web tier shape, but a real migration must include database, files, plugins, cron jobs, and email behavior.
+GLPI should be treated as a stateful business application. A real migration must include database, files, plugins, cron jobs, and email behavior.
 
 Production improvements:
 
@@ -79,7 +77,7 @@ Production improvements:
 
 ### Passbolt
 
-Passbolt must be migrated last. It combines TLS, database state, GPG keys, JWT material, email delivery, and strict application URL assumptions. The lab manifest proves object mapping, not production readiness.
+Passbolt should be migrated last. It combines TLS, database state, GPG keys, JWT material, email delivery, and strict application URL assumptions.
 
 Production improvements:
 
@@ -105,9 +103,8 @@ Production improvements:
 The recommended order is not based on technical simplicity alone. It is based on blast radius:
 
 1. WordPress demo or low-risk public site.
-2. Portainer lab-only visibility.
+2. Portainer only if admin exposure is restricted.
 3. Jenkins after backup and agent strategy.
 4. Superset after metadata persistence design.
 5. GLPI after database and attachment restore proof.
 6. Passbolt only after full key and restore rehearsal.
-

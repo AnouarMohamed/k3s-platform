@@ -1,4 +1,4 @@
-%% ITO K3s Platform Lab diagram source
+%% ITO K3s Platform diagram source
 %% Render with Mermaid, mermaid-cli, or documentation tooling that supports Mermaid.
 
 flowchart TB
@@ -15,7 +15,7 @@ flowchart TB
     issuer["ClusterIssuer staging / production"]
 
     subgraph apps["apps namespace"]
-      wp["WordPress demo"]
+      wp["WordPress"]
       jenkins["Jenkins"]
       glpi["GLPI"]
       superset["Superset"]
@@ -30,7 +30,7 @@ flowchart TB
   end
 
   subgraph git["Git controlled desired state"]
-    repo["ito-k3s-platform-lab"]
+    repo["ito-k3s-platform"]
     kust["root kustomization.yaml"]
     docs["docs + runbooks"]
   end
@@ -45,8 +45,8 @@ flowchart TB
 ---
 
 flowchart LR
-  swarm["Current Swarm + Nginx"] --> lab["K3s lab"]
-  lab --> stateless["First stateless service"]
+  swarm["Current Swarm + Nginx"] --> staging["K3s staging"]
+  staging --> stateless["First stateless service"]
   stateless --> gitops["GitOps controller"]
   gitops --> stateful["Stateful rehearsal"]
   stateful --> prod["Production decision"]

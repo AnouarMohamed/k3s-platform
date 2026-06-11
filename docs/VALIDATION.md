@@ -11,6 +11,7 @@ bash -n scripts/*.sh
 Render the Kustomize tree if `kubectl` is installed:
 
 ```bash
+make check
 kubectl kustomize . >/tmp/ito-k3s-rendered.yaml
 ```
 
@@ -27,6 +28,7 @@ rg -n "password|secret|token|private|BEGIN|htpasswd|acme" .
 ```
 
 Expected result: only examples, placeholders, and secret references should appear.
+Real secret values must exist only in `.env`, a secret manager, or live Kubernetes Secrets.
 
 ## Cluster Validation
 
@@ -72,7 +74,7 @@ kubectl -n apps get order,challenge
 kubectl -n cert-manager logs deploy/cert-manager --tail=200
 ```
 
-Move to production issuer only after staging works.
+If production issuance fails, switch the configured issuer in `platform/settings.yaml` back to `letsencrypt-staging`, fix DNS or ingress reachability, and retry before returning to production.
 
 ## Storage Validation
 
@@ -99,14 +101,16 @@ The minimum healthy path is:
 Ingress -> Service -> Endpoints -> Ready Pod -> Application response
 ```
 
-## Presentation Checklist
+## Server Config Presentation Checklist
 
 Before presenting the repo:
 
-- README explains why K3s exists.
-- docs explain architecture and migration.
+- README explains what the production config set provides.
+- docs explain architecture, security, operations, and production gates.
 - manifests show real Kubernetes primitives.
-- secrets are placeholders only.
+- app images are pinned with digests.
+- default-deny and per-app NetworkPolicies are present.
+- real secrets are not committed.
 - runbooks exist for failures.
 - validation commands are documented.
 - Git history is clean.

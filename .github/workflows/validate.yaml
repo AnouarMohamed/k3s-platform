@@ -1,0 +1,23 @@
+name: Validate manifests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Check shell scripts
+        run: bash -n scripts/*.sh
+
+      - name: Render and check manifests
+        run: ./scripts/check-manifests.sh

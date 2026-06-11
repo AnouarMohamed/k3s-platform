@@ -1,16 +1,147 @@
+# Root Kustomization for ITO K3s Platform
+# This file serves as the main entry point for the entire GitOps-driven infrastructure.
+# It orchestrates the deployment of platform-level components, network policies, and applications.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Resource manifests included in the build.
+# The order generally follows: Namespaces -> Settings -> Base Platform -> Policies -> Applications.
 resources:
   - platform/namespaces.yaml
+  - platform/settings.yaml
+  - platform/serviceaccounts.yaml
+  - platform/resource-guardrails.yaml
   - platform/storage.yaml
   - platform/cert-manager/clusterissuers.yaml
   - policies/default-deny.yaml
   - policies/allow-ingress-to-apps.yaml
-  - policies/allow-apps-internal.yaml
+  - policies/allow-app-db.yaml
+  - policies/allow-app-egress.yaml
   - apps/wordpress-demo
   - apps/jenkins
   - apps/glpi
   - apps/superset
   - apps/passbolt
   - apps/portainer
+
+# Replacements allow for centralized configuration management.
+# They dynamically inject values from the 'platform-settings' ConfigMap into various resources.
+# This ensures consistency across the platform (e.g., matching hostnames in Ingress and App Config).
+replacements:
+  # Inject Let's Encrypt contact email into ACME ClusterIssuers.
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.letsencryptEmail
+    targets:
+      - select:
+          kind: ClusterIssuer
+          name: letsencrypt-staging
+        fieldPaths:
+          - spec.acme.email
+      - select:
+          kind: ClusterIssuer
+          name: letsencrypt-production
+        fieldPaths:
+          - spec.acme.email
+
+  # Dynamically set the cert-manager ClusterIssuer for all Ingress resources.
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.clusterIssuer
+    targets:
+      - select:
+          kind: Ingress
+        fieldPaths:
+          - metadata.annotations.[cert-manager.io/cluster-issuer]
+
+  # Centralized Hostname Management: WordPress
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.wordpressHost
+    targets:
+      - select:
+          kind: Ingress
+          name: wordpress-demo
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+
+  # Centralized Hostname Management: Jenkins
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.jenkinsHost
+    targets:
+      - select:
+          kind: Ingress
+          name: jenkins
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+
+  # Centralized Hostname Management: GLPI
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.glpiHost
+    targets:
+      - select:
+          kind: Ingress
+          name: glpi
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+
+  # Centralized Hostname Management: Superset
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.supersetHost
+    targets:
+      - select:
+          kind: Ingress
+          name: superset
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+
+  # Centralized Hostname Management: Passbolt
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.passboltHost
+    targets:
+      - select:
+          kind: Ingress
+          name: passbolt
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+
+  # Passbolt requires its full base URL to be injected into its environment variables.
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.passboltBaseUrl
+    targets:
+      - select:
+          kind: Deployment
+          name: passbolt
+        fieldPaths:
+          - spec.template.spec.containers.[name=passbolt].env.[name=APP_FULL_BASE_URL].value
+
+  # Centralized Hostname Management: Portainer
+  - source:
+      kind: ConfigMap
+      name: platform-settings
+      fieldPath: data.portainerHost
+    targets:
+      - select:
+          kind: Ingress
+          name: portainer
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0

@@ -2,88 +2,51 @@
 
 ## Position
 
-This repository is intentionally strong as a lab and presentation baseline. It is not labeled production-ready because production Kubernetes requires more than working manifests.
+This repository is a production-oriented K3s configuration set. The manifests are structured for real server use, but production readiness is only complete when the operator supplies real domains, secrets, backups, monitoring, and access controls.
 
-Production readiness means:
+The repo now treats unsafe defaults as deployment blockers:
 
-- traffic can be restored after failure.
-- data can be restored after loss.
-- secrets can be rotated.
-- changes can be reviewed and rolled back.
-- monitoring detects failures before users report them.
-- access is controlled and auditable.
+- `make apply` refuses example domains and `admin@example.com`.
+- `make secrets` refuses empty or placeholder secret values.
+- `make check` renders the tree and rejects floating `latest` images.
+- app images use pinned tags with digests.
+- NetworkPolicy defaults to deny ingress and egress.
 
 ## Readiness Matrix
 
-| Area | Lab state | Production requirement |
+| Area | Current repo state | Operator must provide |
 | --- | --- | --- |
-| Cluster | single-node K3s possible | HA control plane or accepted single-node risk |
-| Ingress | ingress-nginx with LoadBalancer Service | tested public IP, DNS, rate limits, auth, access restrictions |
-| TLS | cert-manager staging and production issuers | staging verified, production issuer enabled intentionally |
-| Secrets | local `.env` to Kubernetes Secrets | SOPS, Sealed Secrets, External Secrets, or cloud secret manager |
-| Storage | local-path-retain | Longhorn, managed DB, external storage, or documented risk acceptance |
-| Backups | documented expectation | scheduled backup jobs, off-node storage, restore drills |
-| Monitoring | reserved `ops` namespace | Prometheus, Grafana, Loki, Alertmanager or managed equivalent |
-| Security | baseline namespaces and default-deny | per-app policies, RBAC, pod hardening, vulnerability scanning |
-| Images | mixed pinned and floating tags | pinned versions or digests |
-| Operations | Makefile and runbooks | GitOps, alerts, incident response, access policy |
+| Cluster | K3s bootstrap, Traefik disabled | HA decision or accepted single-node risk |
+| Ingress | ingress-nginx LoadBalancer Service | public DNS and firewall rules |
+| TLS | cert-manager staging and production issuers | real ACME email and successful issuance checks |
+| Settings | central `platform/settings.yaml` | real hostnames before apply |
+| Secrets | `.env`-driven bootstrap with placeholder rejection | SOPS, Sealed Secrets, or External Secrets for GitOps |
+| Storage | retained local-path PVCs | backup target, restore drills, or stronger storage backend |
+| Network | default-deny plus per-app allow rules | CNI enforcement verification on the server |
+| Runtime | service accounts, token automount disabled, resource limits | ongoing capacity monitoring |
+| Images | pinned tags with manifest digests | vulnerability scanning and update cadence |
+| Operations | Makefile, scripts, docs, runbooks | incident ownership and maintenance windows |
 
-## Hardening Backlog
+## Production Gate
 
-High priority:
+Do not cut over a service until these are true:
 
-- replace example domains.
-- update `ClusterIssuer` email.
-- switch all public routes to the intended issuer only after staging works.
-- pin image versions.
-- add resource requests and limits.
-- add backups for each stateful app.
-- restrict admin tools by VPN, IP allowlist, or authentication.
-- introduce a real secret management workflow.
+1. `platform/settings.yaml` contains real production domains and email.
+2. `.env` contains real secret values and is not committed.
+3. `make check` passes.
+4. `make secrets` has created required runtime Secrets.
+5. `kubectl diff -k .` has been reviewed.
+6. cert-manager can issue the certificate for the host.
+7. the app has a tested backup and restore process.
+8. DNS rollback is documented.
+9. monitoring can detect pod, ingress, certificate, disk, and backup failures.
+10. admin apps are protected by auth plus VPN, IP allowlist, or another network control.
 
-Medium priority:
+## Remaining High-Value Additions
 
-- split databases into `data` namespace.
-- add per-app NetworkPolicies.
-- add PodDisruptionBudgets where replicas are higher than one.
-- add Prometheus metrics and dashboards.
-- add log aggregation.
-- add CI validation for YAML and Kustomize build.
-
-Future:
-
-- evaluate Longhorn for multi-node K3s.
-- evaluate GKE for managed control plane and cloud load balancing.
-- adopt Argo CD or Flux.
-- introduce policy-as-code checks.
-
-## Production Migration Gate
-
-Do not migrate a production service until these questions are answered:
-
-1. What data does the service own?
-2. Where is the backup stored?
-3. Has restore been tested?
-4. What is the DNS rollback plan?
-5. Which secret values must be preserved?
-6. Which users/admins need access?
-7. What monitoring proves the service is healthy?
-8. What command or Git revert rolls back the change?
-9. What is the maintenance window?
-10. What is the maximum acceptable downtime?
-
-## Why This Is Still Valuable
-
-The lab is valuable because it teaches the real platform primitives before the risk is real. It lets the engineer build confidence with:
-
-- K3s installation.
-- ingress-nginx routing.
-- cert-manager issuance.
-- Kubernetes Services and DNS.
-- PVC behavior.
-- NetworkPolicy behavior.
-- application probes.
-- Kustomize and Git-based desired state.
-
-That learning directly improves a future K3s, GKE, or managed Kubernetes migration.
-
+- SOPS or Sealed Secrets for encrypted Git-managed secrets.
+- Prometheus, Grafana, Loki, and Alertmanager in `ops`.
+- scheduled backup jobs for MySQL, MariaDB, and PVC data.
+- CI workflow for `make check`, kubeconform, and policy checks.
+- external auth or ingress IP allowlists for admin surfaces.
+- server inventory and disaster recovery documentation.

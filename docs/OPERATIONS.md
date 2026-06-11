@@ -20,6 +20,7 @@ make bootstrap
 export KUBECONFIG=$PWD/kubeconfig
 make addons
 make secrets
+make check
 make apply
 make validate
 ```
@@ -45,13 +46,14 @@ Healthy baseline:
 ## Change Workflow
 
 1. Edit manifests locally.
-2. Run `kubectl diff -k .`.
-3. Review every object that will be changed.
-4. Apply with `make apply`.
-5. Validate with `make validate`.
-6. Test each public hostname with `curl -I`.
+2. Run `make check`.
+3. Run `kubectl diff -k .`.
+4. Review every object that will be changed.
+5. Apply with `make apply`.
+6. Validate with `make validate`.
+7. Test each public hostname with `curl -I`.
 
-For presentation or review work, also run:
+For review work, also run:
 
 ```bash
 bash -n scripts/*.sh
@@ -75,7 +77,10 @@ Minimum objects:
 - `Ingress`
 - `PersistentVolumeClaim` if data is stored
 - `Secret` reference, not secret values
-- readiness probe
+- readiness and liveness probes
+- resource requests and limits
+- dedicated ServiceAccount
+- NetworkPolicy for ingress, egress, and internal dependencies
 
 Add the app folder to the root `kustomization.yaml`.
 
@@ -136,7 +141,7 @@ kubectl -n apps rollout status deploy/<name>
 
 This repository does not pretend that PVCs are backups. PVCs are runtime storage. Backups must be external.
 
-Minimum lab backup:
+Minimum manual backup example:
 
 ```bash
 kubectl -n apps get pvc
@@ -168,13 +173,12 @@ Before an upgrade:
 
 - read chart release notes.
 - snapshot or back up important data.
-- validate the lab first.
+- validate on staging or during a maintenance window first.
 - avoid upgrading ingress and cert-manager at the same time in production.
 
 ## What Not To Do
 
 - Do not switch all stateful services at once.
-- Do not use production Let's Encrypt before staging works.
 - Do not commit `.env` or kubeconfig.
 - Do not rely on `latest` tags for production.
 - Do not expose admin tools without auth and IP restrictions.

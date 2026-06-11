@@ -1,22 +1,22 @@
 # Architecture Decisions
 
-## ADR-001: Use K3s As The First Kubernetes Step
+## ADR-001: Use K3s For The Server Platform
 
-Decision: use K3s for the lab instead of a full upstream kubeadm cluster or immediate managed Kubernetes.
+Decision: use K3s as the Kubernetes distribution for the production server config set.
 
 Reasoning:
 
-- K3s is lightweight enough for a VPS lab.
-- It preserves Kubernetes APIs and object models.
+- K3s is lightweight enough for VPS and small bare-metal servers.
+- It preserves standard Kubernetes APIs and object models.
 - It reduces bootstrap complexity while keeping real cluster concepts.
-- It creates a learning bridge toward managed platforms such as GKE.
+- It leaves a future path to managed Kubernetes if the platform grows.
 
 Tradeoff:
 
-- K3s does not remove the need for backup, monitoring, or security discipline.
-- Single-node K3s is not equivalent to a highly available production cluster.
+- Single-node K3s is not highly available.
+- Backups, monitoring, and security discipline remain operator responsibilities.
 
-Status: accepted for lab.
+Status: accepted.
 
 ## ADR-002: Disable Bundled Traefik And Use ingress-nginx
 
@@ -24,14 +24,13 @@ Decision: install K3s with `--disable traefik` and use ingress-nginx.
 
 Reasoning:
 
-- The current Swarm evolution already moved from dynamic Traefik labels to explicit Nginx routes.
-- ingress-nginx makes the Kubernetes edge model easy to compare with the Nginx Swarm edge.
-- It is a widely understood Ingress controller with strong documentation and common operational patterns.
-- Nginx behavior is familiar from the existing edge repo.
+- ingress-nginx keeps edge behavior explicit.
+- Nginx is familiar from existing server operations.
+- annotations and logs are widely understood.
+- cert-manager HTTP-01 integration is standard.
 
 Tradeoff:
 
-- The bundled K3s Traefik controller is simpler to keep.
 - ingress-nginx adds a Helm-managed platform component.
 
 Status: accepted.
@@ -42,85 +41,101 @@ Decision: use cert-manager ClusterIssuers for ACME certificates.
 
 Reasoning:
 
-- Certificate lifecycle becomes Kubernetes-native.
-- Certificates are represented by API objects.
+- certificate lifecycle becomes Kubernetes-native.
+- certificates are represented by API objects.
 - HTTP-01 challenge handling integrates with Ingress.
-- The staging/production issuer split avoids unnecessary Let's Encrypt production failures.
+- staging and production issuers both exist for safer operations.
 
 Tradeoff:
 
-- cert-manager adds CRDs and a controller that must be monitored.
+- cert-manager adds CRDs and controllers that must be monitored.
 - DNS and ingress reachability must be correct before issuance works.
 
 Status: accepted.
 
-## ADR-004: Use Kustomize Instead Of Helm For Local App Manifests
+## ADR-004: Use Kustomize For Local App Manifests
 
 Decision: write local apps as plain manifests composed by Kustomize.
 
 Reasoning:
 
-- The repo stays readable for report and presentation purposes.
-- Every Deployment, Service, Ingress, PVC, and Secret reference is visible.
+- the repo stays readable and reviewable.
+- every Deployment, Service, Ingress, PVC, and Secret reference is visible.
 - Kustomize is built into kubectl and works well with GitOps.
-- The approach avoids hiding important learning value inside third-party charts.
+- central replacements allow production settings without hiding app manifests.
 
 Tradeoff:
 
-- Full application charts can be more complete.
-- The operator must maintain manifests directly.
+- full application charts can be more complete.
+- the operator must maintain manifests directly.
 
-Status: accepted for lab.
+Status: accepted.
 
-## ADR-005: Keep Secrets Out Of Git
+## ADR-005: Keep Plaintext Secrets Out Of Git
 
-Decision: commit only secret examples and create runtime Secrets from `.env`.
+Decision: commit only examples and create runtime Secrets from `.env` for manual bootstrap.
 
 Reasoning:
 
-- The repo can be public and presentation-safe.
-- The workflow matches the sanitized Swarm repos.
-- Secret references remain visible without exposing values.
+- the repo can stay sanitized.
+- secret references remain visible without exposing values.
+- `scripts/create-secrets.sh` rejects placeholders.
 
 Tradeoff:
 
-- Local `.env` secret creation is not ideal production secret management.
-- Production should move to SOPS, Sealed Secrets, External Secrets, or a cloud secret manager.
+- `.env` bootstrap is not full production GitOps secret management.
+- SOPS, Sealed Secrets, or External Secrets should be added next.
 
-Status: accepted for lab, replace before production.
+Status: accepted as bootstrap; improve with encrypted secrets.
 
-## ADR-006: Use local-path-retain For Lab Storage
+## ADR-006: Use local-path-retain As The Default StorageClass
 
 Decision: use the K3s local-path provisioner through a retained StorageClass.
 
 Reasoning:
 
-- It is simple and available in K3s.
-- PVCs can be tested without installing a storage platform.
-- `Retain` reduces accidental data deletion during lab iteration.
+- it is simple and available in K3s.
+- it works for single-server deployments.
+- `Retain` reduces accidental data deletion during iteration.
 
 Tradeoff:
 
-- Storage is node-local.
-- Multi-node scheduling and node failure behavior are limited.
-- Production needs Longhorn, managed databases, or external storage decisions.
+- storage is node-local.
+- node failure can mean service and data outage.
+- production requires external backups or a stronger storage design.
 
-Status: accepted for lab only.
+Status: accepted with explicit risk.
 
-## ADR-007: Apply Default-Deny Ingress Early
+## ADR-007: Enforce Default-Deny NetworkPolicy
 
-Decision: include NetworkPolicy default-deny for `apps` and `data`.
+Decision: default deny both ingress and egress for application namespaces, then add explicit allow policies.
 
 Reasoning:
 
-- It teaches the correct security model early.
-- Public access should arrive through ingress, not accidental pod reachability.
-- Internal service traffic is allowed deliberately.
+- public access should arrive through ingress only.
+- internal service traffic should be deliberate.
+- egress should be explainable and reviewable.
+- lateral movement risk is reduced.
 
 Tradeoff:
 
-- NetworkPolicy behavior depends on the CNI enforcing it.
-- Coarse namespace-wide allows should be refined before production.
+- policies require real CNI enforcement.
+- each new app needs policy work before it functions.
 
-Status: accepted, improve per app later.
+Status: accepted.
 
+## ADR-008: Pin Application Images With Digests
+
+Decision: app containers use tags plus manifest digests.
+
+Reasoning:
+
+- prevents silent image drift.
+- preserves human-readable version context.
+- makes changes reviewable in Git.
+
+Tradeoff:
+
+- digest updates are manual until an image update workflow exists.
+
+Status: accepted.

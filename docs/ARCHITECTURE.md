@@ -2,9 +2,7 @@
 
 ## Executive Summary
 
-This repository proposes a K3s platform as the next maturity step after the Docker Swarm infrastructure. The current Swarm platform is simple and appropriate for a constrained VPS. K3s becomes valuable when the platform needs stronger standardization: Kubernetes Deployments, Services, Ingress, Secrets, ConfigMaps, PVCs, probes, RBAC, NetworkPolicy, and GitOps-friendly manifests.
-
-The architecture is intentionally progressive. It does not assume that every service should be migrated immediately. It creates a lab that can validate Kubernetes behavior before any production cutover.
+This repository defines a production-oriented K3s platform for ITO servers. It keeps the operational control of a small VPS-style deployment while adopting Kubernetes primitives that are useful in production: Deployments, Services, Ingress, Secrets, PVCs, probes, NetworkPolicy, Pod Security Admission labels, resource guardrails, and Git-friendly desired state.
 
 ## Target Model
 
@@ -19,7 +17,7 @@ flowchart TB
   pods --> pvc[(PVC / local-path-retain)]
   cert[cert-manager] --> ingress
   issuer[ClusterIssuer] --> cert
-  git[Git repository] --> kustomize[Kustomize entrypoint]
+  git[Git repository] --> kustomize[Kustomize root]
   kustomize --> cluster[K3s API Server]
 ```
 
@@ -30,42 +28,39 @@ flowchart TB
 | `ingress-nginx` | Helm-managed ingress controller | Public HTTP/S entry layer. |
 | `cert-manager` | Helm-managed certificate controller | ACME automation and certificate lifecycle. |
 | `apps` | Application workloads | Keeps business workloads separate from controllers. |
-| `data` | Future dedicated database workloads | Reserved for stricter data isolation when stateful migration begins. |
-| `ops` | Future observability stack | Reserved for Prometheus, Grafana, Loki, and alerts. |
+| `data` | Dedicated data workloads when split out later | Reserved for stricter data isolation. |
+| `ops` | Operations and future observability | Holds platform settings today, later monitoring and alerting. |
 | `edge` | Future edge helpers | Reserved for custom edge tools if the architecture grows. |
 
 ## Ingress Strategy
 
-The lab disables K3s' bundled Traefik and installs `ingress-nginx`. This choice mirrors the Swarm Nginx migration: explicit behavior, strong operational visibility, standard annotations, and an ecosystem that maps cleanly to production Kubernetes.
+K3s is installed with bundled Traefik disabled and ingress-nginx installed by Helm. This keeps the edge explicit and familiar for operators coming from Nginx-based server routing.
 
 The Ingress model replaces Nginx `server{}` blocks with Kubernetes `Ingress` resources:
 
-| Swarm Nginx concept | K3s equivalent |
+| Nginx concept | Kubernetes equivalent |
 | --- | --- |
 | `server_name` | `spec.rules[].host` |
 | `proxy_pass` | `Service` backend |
 | Certbot webroot | cert-manager HTTP-01 solver |
-| `auth-infra.conf` | ingress annotations or external auth |
-| `ratelimit-infra.conf` | ingress-nginx rate-limit annotations |
-| `security-headers.conf` | ingress-nginx config / app headers / policy |
+| auth include | ingress annotations, external auth, VPN, or app auth |
+| rate-limit include | ingress-nginx rate-limit annotations |
+| security headers | ingress-nginx config, app headers, or policy |
+
+Public hostnames and the selected cert-manager issuer are centralized in `platform/settings.yaml` and injected by Kustomize replacements.
 
 ## TLS Strategy
 
-cert-manager is responsible for certificate lifecycle. The repository defines two ClusterIssuers:
+cert-manager owns certificate lifecycle. The repository defines:
 
-- `letsencrypt-staging` for safe validation.
-- `letsencrypt-production` for real public certificates after DNS is correct.
+- `letsencrypt-staging` for validation.
+- `letsencrypt-production` for real public certificates.
 
-The default manifests use staging. Production should be enabled only after:
-
-1. DNS points to the cluster public IP.
-2. ingress-nginx serves HTTP-01 challenge paths.
-3. staging certificate issuance succeeds.
-4. `kubectl describe certificate` shows no solver errors.
+The selected issuer comes from `platform/settings.yaml`. `make apply` blocks example hostnames and email addresses so production apply requires deliberate values.
 
 ## Storage Strategy
 
-The lab uses K3s' `local-path` provisioner through a retained StorageClass:
+The default StorageClass is `local-path-retain`:
 
 ```yaml
 reclaimPolicy: Retain
@@ -73,7 +68,7 @@ volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 ```
 
-This is good for a single-node lab because it is simple and transparent. It is not enough for a production multi-node architecture unless the risk is accepted. For production, evaluate:
+This is acceptable for a small single-server K3s deployment when the operator accepts node-local storage risk and has external backups. For stronger production resilience, add one of:
 
 - Longhorn for replicated block storage.
 - managed databases outside the cluster.
@@ -82,37 +77,38 @@ This is good for a single-node lab because it is simple and transparent. It is n
 
 ## Network Policy Strategy
 
-The lab includes a default-deny baseline for `apps` and `data`, then allows:
+The network model is default-deny for ingress and egress in `apps` and `data`.
 
-- ingress controller traffic into app ports.
-- internal traffic inside the `apps` namespace for service-to-service communication.
+Allowed traffic is specific:
 
-This is intentionally stricter than default Kubernetes networking. It creates the right habit early: services should be reachable because policy allows it, not because the cluster is wide open.
+- ingress-nginx reaches only frontend pods on their published ports.
+- app frontends reach only their matching database pods on TCP 3306.
+- pods reach kube-dns on TCP/UDP 53.
+- selected apps reach public web endpoints on TCP 80/443.
+- selected apps reach SMTP endpoints on TCP 25/465/587.
+- Jenkins reaches Git SSH on TCP 22.
+- labelled Jenkins agents reach Jenkins TCP 50000.
+
+There is no namespace-wide internal allow.
 
 ## Application Mapping
 
-| Current Swarm service | K3s lab object |
+| Service | K3s object set |
 | --- | --- |
-| WordPress stack | `apps/wordpress-demo` Deployment, MySQL, Service, Ingress, PVCs |
-| Jenkins | `apps/jenkins` Deployment, Service, Ingress, PVC |
-| GLPI | `apps/glpi` Deployment, Service, Ingress, PVC |
-| Superset | `apps/superset` Deployment, Service, Ingress, PVC |
-| Passbolt | `apps/passbolt` Passbolt + MariaDB, Service, Ingress, PVCs |
-| Portainer | `apps/portainer` Deployment, Service, Ingress, PVC |
+| WordPress | Deployment, MySQL Deployment, Services, Ingress, PVCs |
+| Jenkins | Deployment, Service, Ingress, PVC |
+| GLPI | Deployment, Service, Ingress, PVC |
+| Superset | Deployment, Service, Ingress, PVC |
+| Passbolt | Passbolt Deployment, MariaDB Deployment, Services, Ingress, PVCs |
+| Portainer | Deployment, Service, Ingress, PVC |
 
 ## Production Upgrade Path
 
-The lab is deliberately conservative. A stronger production design would add:
+The next architectural upgrades are:
 
-- GitOps controller such as Argo CD or Flux.
-- Sealed Secrets, SOPS, or External Secrets.
-- Prometheus, Grafana, Loki, Alertmanager.
-- backup controller and restore drills.
-- per-app NetworkPolicies instead of namespace-wide internal allow.
-- PodDisruptionBudgets for services with more than one replica.
-- resource requests and limits based on observed usage.
-- image pinning instead of floating `latest` tags.
-
-## Architecture Decision
-
-K3s is the recommended first Kubernetes step because it is lightweight and close to upstream Kubernetes. It teaches the correct primitives without forcing the operational weight of a large managed cluster. It also leaves a future path to GKE if ITO needs cloud-managed control plane, node pools, autoscaling, or stronger load-balancing integration.
+- encrypted Git-managed secrets with SOPS or Sealed Secrets.
+- backup jobs and restore automation.
+- monitoring in `ops`: Prometheus, Grafana, Loki, Alertmanager.
+- ingress external auth or IP allowlists for admin surfaces.
+- CI checks with kubeconform and policy-as-code.
+- per-server overlays if the same repo manages staging and production.

@@ -2,7 +2,7 @@
 
 ## Goal
 
-The lab is intentionally structured so it can be adopted by Argo CD or Flux later. The current Makefile workflow is simple and manual. GitOps should be introduced only after manifests are stable and the team understands what the controller will apply.
+The repository is structured so it can be adopted by Argo CD or Flux after the manual apply workflow is proven. GitOps should be introduced only after manifests, secrets, backups, and rollback behavior are understood.
 
 ## Current Manual Flow
 
@@ -33,12 +33,12 @@ Recommended target:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ito-lab
+  name: ito-prod
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/AnouarMohamed/ito-k3s-platform-lab.git
+    repoURL: https://github.com/AnouarMohamed/ito-k3s-platform.git
     targetRevision: main
     path: .
   destination:
@@ -58,7 +58,7 @@ Do not enable aggressive pruning until the team is comfortable with how Kubernet
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: ito-lab
+  name: ito-prod
   namespace: flux-system
 spec:
   interval: 5m
@@ -66,7 +66,7 @@ spec:
   prune: false
   sourceRef:
     kind: GitRepository
-    name: ito-k3s-platform-lab
+    name: ito-k3s-platform
   wait: true
 ```
 
@@ -75,19 +75,17 @@ spec:
 Changes that should require review:
 
 - new public hostname.
-- switch from staging issuer to production issuer.
+- issuer, public hostname, or TLS settings change.
 - storage size or reclaim policy change.
 - image tag change for stateful service.
 - NetworkPolicy change.
 - RBAC change.
 - secret reference change.
 
-Changes that can be fast-tracked in a lab:
+Changes that can be fast-tracked:
 
-- documentation.
 - comments.
-- non-production hostname updates.
-- demo app removal.
+- documentation-only changes.
 
 ## Secret Strategy For GitOps
 
@@ -98,21 +96,19 @@ Do not put raw Kubernetes Secret manifests with real values in Git. Good options
 | SOPS + age | Strong for GitOps | Encrypted values are committed, keys stay outside Git. |
 | Sealed Secrets | Simple cluster-bound encryption | Easy for a small cluster, tied to controller key. |
 | External Secrets Operator | Strong cloud integration | Best when using a secret manager. |
-| Manual secret creation | Fine for lab | Not enough for production GitOps. |
+| Manual secret creation | Useful for bootstrap | Not enough for production GitOps. |
 
 ## Promotion Model
 
 Recommended environments:
 
-1. `ito-lab` for learning and validation.
-2. `ito-staging` for production-like DNS, certs, and backups.
-3. `ito-prod` only after restore drills and rollback are proven.
+1. `ito-staging` for DNS, certs, backups, and upgrade rehearsals.
+2. `ito-prod` after restore drills and rollback are proven.
 
 Each environment can later have its own cluster entrypoint:
 
 ```text
 clusters/
-  ito-lab/
   ito-staging/
   ito-prod/
 ```

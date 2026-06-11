@@ -2,18 +2,24 @@
 
 ## Security Objective
 
-The objective is not to make the lab look complicated. The objective is to establish security habits that can survive a real migration:
+The security objective is to make server configuration explicit, reviewable, and hard to apply accidentally with unsafe defaults.
 
-- no secrets in Git.
+The repository uses:
+
+- no plaintext production secrets in Git.
 - explicit namespaces.
-- default-deny network posture.
+- Pod Security Admission labels.
+- default-deny ingress and egress.
+- per-app NetworkPolicies.
 - TLS automation.
-- readiness checks before routing.
-- separated platform controllers and application workloads.
+- readiness and liveness probes.
+- pinned images with digests.
+- dedicated service accounts with token automount disabled.
+- resource quotas and limits.
 
 ## Secrets
 
-Secrets are created from `.env` through `scripts/create-lab-secrets.sh`. The `.env` file is ignored.
+Runtime Secrets are created from `.env` through `scripts/create-secrets.sh`. The script refuses missing values and obvious placeholders.
 
 Never commit:
 
@@ -24,7 +30,7 @@ Never commit:
 - generated password hashes
 - service account tokens
 
-For production, replace local secret creation with one of:
+For GitOps production use, replace local secret creation with one of:
 
 - SOPS + age/GPG.
 - Sealed Secrets.
@@ -33,66 +39,56 @@ For production, replace local secret creation with one of:
 
 ## TLS
 
-The default issuer is staging. Production issuance should be a deliberate change after HTTP-01 validation.
+The root Kustomize tree uses `platform/settings.yaml` to select the issuer injected into every Ingress. The default setting is `letsencrypt-production`, but `make apply` blocks the example ACME email and example hostnames.
 
-Security rule:
-
-```text
-If staging does not work, production must not be attempted.
-```
+Keep the staging issuer available for validation and incident work. Production issuance should happen only after DNS and HTTP-01 routing are confirmed.
 
 ## Network Policies
 
-The repo applies default-deny ingress policies for `apps` and `data`. It then allows ingress controller traffic and internal app namespace traffic.
+The repo applies default-deny ingress and egress in `apps` and `data`.
 
-Production hardening should replace namespace-wide internal allow with app-level policies:
+Allowed paths are explicit:
 
-- ingress controller -> frontend service only.
-- frontend -> database only on database port.
-- CI/CD -> only required endpoints.
-- monitoring -> metrics endpoints only.
+- ingress-nginx namespace -> each frontend app on its service port.
+- WordPress -> WordPress DB on TCP 3306.
+- Passbolt -> Passbolt DB on TCP 3306.
+- app pods -> kube-dns on TCP/UDP 53.
+- selected app pods -> public TCP 80/443.
+- selected mail-capable app pods -> public SMTP ports 25/465/587.
+- Jenkins -> public TCP 22 for Git SSH.
+- Jenkins agents labelled `jenkins.io/agent=true` -> Jenkins TCP 50000.
+
+The old namespace-wide internal allow has been removed.
 
 ## RBAC
 
-The lab keeps RBAC minimal. Production should add:
+Each workload has a named ServiceAccount and `automountServiceAccountToken: false`. This prevents application pods from receiving Kubernetes API tokens unless a future workload explicitly needs one.
 
-- named service accounts per app.
-- least-privilege roles.
-- no default service account tokens unless required.
-- restricted admin access.
-- audit logs if running on managed Kubernetes.
+If Portainer or Jenkins is later allowed to manage the cluster, add deliberate RBAC in a separate reviewed manifest.
 
 ## Pod Security
 
-Namespaces enforce baseline Pod Security Admission. Production should evaluate restricted mode for apps that can support it.
-
-Expected future improvements:
-
-- `runAsNonRoot`
-- read-only root filesystems
-- dropped Linux capabilities
-- resource requests and limits
-- image digest pinning
+Namespaces enforce `baseline` Pod Security and warn/audit against `restricted`. This keeps the current third-party images deployable while surfacing violations that should be resolved with custom images or app-specific hardening.
 
 ## Public Exposure
 
-Admin applications such as Jenkins, Portainer, Passbolt, and GLPI should not be treated like public marketing websites.
+Admin applications such as Jenkins, Portainer, Passbolt, GLPI, and Superset should not be treated like public marketing websites.
 
-Before production:
+Before production exposure:
 
-- add authentication at ingress or application layer.
-- consider VPN or IP allowlist.
+- add application authentication.
+- consider VPN, IP allowlist, or external auth at ingress.
 - enable rate limiting.
-- verify headers.
 - monitor login failures.
+- document emergency disable steps.
 
 ## Supply Chain
 
-This lab uses public images for clarity. Production should use:
+Application images are pinned with tags and manifest digests. Production operation should add:
 
-- pinned image tags or digests.
 - vulnerability scanning.
-- build provenance where custom images exist.
+- digest refresh process.
+- image promotion through staging.
 - private registry for internal images.
 
 ## Security Review Checklist
@@ -102,20 +98,9 @@ Before merging a change:
 - Does it introduce a new public host?
 - Does it require a new secret?
 - Is the secret referenced, not committed?
+- Does it use a pinned image digest?
 - Is there a readiness probe?
 - Is there a service endpoint?
 - Is the ingress TLS-enabled?
 - Does NetworkPolicy permit only what is required?
 - Is rollback obvious?
-
-## Threat Model
-
-| Threat | Control in this repo | Production improvement |
-| --- | --- | --- |
-| Secret leak through Git | `.env` ignored, examples only | SOPS, Sealed Secrets, External Secrets |
-| Accidental public exposure | Ingress objects are explicit | VPN, IP allowlist, external auth |
-| Weak TLS rollout | staging issuer first | monitoring and renewal alerts |
-| Lateral movement | default-deny ingress baseline | per-app policies and egress controls |
-| Broken app receiving traffic | readiness probes | stricter probes and SLO checks |
-| Data loss | retained PVCs | off-node backups and restore drills |
-| Supply-chain drift | visible image references | pinned tags, digests, scanning |

@@ -134,7 +134,7 @@ During migration, DNS remains the safest rollback lever.
 
 1. keep the Swarm service running.
 2. lower DNS TTL before cutover.
-3. validate the K3s route under a lab hostname.
+3. validate the K3s route under a staging hostname.
 4. move the production hostname only after validation.
 5. if the K3s service fails, point DNS back to the Swarm edge IP.
 
